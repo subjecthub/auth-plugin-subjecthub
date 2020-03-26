@@ -1,0 +1,17 @@
+.idea/workspace.xml
+.idea/dictionaries
+.idea/misc.xml
+dist/
+out/
+
+bin/
+gen/
+
+.gradle/
+build/
+
+*.iml
+.idea/tasks.xml
+.idea/gradle.xml
+.idea/libraries
+

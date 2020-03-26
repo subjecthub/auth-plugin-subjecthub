@@ -1,0 +1,27 @@
+// Apply the java plugin to add support for Java
+apply plugin: 'java'
+
+// In this section you declare where to find the dependencies of your project
+repositories {
+    // Use 'jcenter' for resolving your dependencies.
+    // You can declare any Maven/Ivy/file repository here.
+    jcenter()
+}
+
+jar {
+    from {
+        configurations.compile.filter( {! (it.name =~ /authorization.jar/) } ).collect {
+            it.isDirectory() ? it : zipTree(it)
+        }
+    }
+}
+
+// In this section you declare the dependencies for your production and test code
+dependencies {
+    compile files('libs/migratorydata-extension-authorization.jar')
+    compile files('libs/migratorydata-client-java.jar')
+    compile files('libs/mysql-connector-java-8.0.19.jar')
+    compile group: 'org.json', name: 'json', version: '20190722'
+
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}
