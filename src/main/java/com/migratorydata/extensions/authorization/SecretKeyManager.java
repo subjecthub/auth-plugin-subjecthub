@@ -150,7 +150,11 @@ public class SecretKeyManager implements MigratoryDataListener, MigratoryDataLog
         while (true) {
             Runnable r = queue.poll();
             if (r != null) {
-                r.run();
+                try {
+                    r.run();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
             try {
                 Thread.sleep(10);

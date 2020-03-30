@@ -30,10 +30,14 @@ public class DefaultAuthorizationListener implements MigratoryDataEntitlementLis
                 } else {
                     String prefix = getPrefix(subject);
                     Key key = secretKeyManager.getKey(prefix);
-                    if (key.isPrivatePrefix()) {
-                        migratoryDataSubscribeRequest.setAllowed(subject, key.checkSubscribePrivate(secretKey));
+                    if (key != null) {
+                        if (key.isPrivatePrefix()) {
+                            migratoryDataSubscribeRequest.setAllowed(subject, key.checkSubscribePrivate(secretKey));
+                        } else {
+                            migratoryDataSubscribeRequest.setAllowed(subject, true);
+                        }
                     } else {
-                        migratoryDataSubscribeRequest.setAllowed(subject, true);
+                        migratoryDataSubscribeRequest.setAllowed(subject, false);
                     }
                 }
             }
@@ -60,10 +64,12 @@ public class DefaultAuthorizationListener implements MigratoryDataEntitlementLis
 
                 String prefix = getPrefix(subject);
                 Key key = secretKeyManager.getKey(prefix);
-                if (key.isPrivatePrefix()) {
-                    migratoryDataPublishRequest.setAllowed(key.checkPublishPrivate(secretKey));
-                } else {
-                    migratoryDataPublishRequest.setAllowed(key.checkPublishPublic(secretKey));
+                if (key != null) {
+                    if (key.isPrivatePrefix()) {
+                        migratoryDataPublishRequest.setAllowed(key.checkPublishPrivate(secretKey));
+                    } else {
+                        migratoryDataPublishRequest.setAllowed(key.checkPublishPublic(secretKey));
+                    }
                 }
 
                 migratoryDataPublishRequest.sendResponse();
@@ -73,6 +79,9 @@ public class DefaultAuthorizationListener implements MigratoryDataEntitlementLis
 
 	private String getPrefix(String subject) {
 	    int endFirstSegment = subject.indexOf("/", 1);
+	    if (endFirstSegment == -1) {
+	        return subject;
+        }
 	    int endSecondSegment = subject.indexOf("/", endFirstSegment + 1);
         if (endSecondSegment == -1) {
             return subject;
