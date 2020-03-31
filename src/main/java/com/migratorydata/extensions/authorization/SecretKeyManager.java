@@ -68,6 +68,7 @@ public class SecretKeyManager implements MigratoryDataListener, MigratoryDataLog
     private Queue<Runnable> queue = new ConcurrentLinkedQueue<>();
 
     private Map<String, Key> keys = new HashMap<>(); // subject -> secret_key
+    private Map<String, Boolean> publicSubjects = new HashMap<>();
 
     private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
@@ -84,10 +85,12 @@ public class SecretKeyManager implements MigratoryDataListener, MigratoryDataLog
             queue.offer(() -> {
                MySqlAccess mySqlAccess = new MySqlAccess();
                 try {
-                    Map<String, Key> subjectToKey = mySqlAccess.readDataBase(dbIp, dbName, user, password);
+                    Map<String, Key> subjectToKey = mySqlAccess.readKeysFromDataBase(dbIp, dbName, user, password);
                     if (subjectToKey.size() > 0) {
                         keys.putAll(subjectToKey);
                     }
+
+                    publicSubjects.putAll(mySqlAccess.readPublicSubjectsFromDataBase(dbIp, dbName, user, password));
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -107,8 +110,12 @@ public class SecretKeyManager implements MigratoryDataListener, MigratoryDataLog
         return serviceSubject;
     }
 
-    public Key getKey(String subject) {
-        return keys.get(subject);
+    public Key getGroupKeys(String group) {
+        return keys.get(group);
+    }
+
+    public boolean isPublicSubject(String subject) {
+        return publicSubjects.containsKey(subject);
     }
 
     @Override
@@ -118,7 +125,7 @@ public class SecretKeyManager implements MigratoryDataListener, MigratoryDataLog
             case RECOVERED:
                 queue.offer(() -> {
                     JSONObject jsonObject = new JSONObject(new String(migratoryDataMessage.getContent()));
-                    String prefix = (String) jsonObject.get("prefix");
+                    String group = (String) jsonObject.get("prefix");
                     String publishKey = (String) jsonObject.get("publish_key");
                     String subscribeKey = (String) jsonObject.get("subscribe_key");
                     String pubSubKey = (String) jsonObject.get("pub_sub_key");
@@ -126,9 +133,16 @@ public class SecretKeyManager implements MigratoryDataListener, MigratoryDataLog
                     String operation = (String) jsonObject.get("operation");
 
                     System.out.println("Update keys with:");
-                    System.out.println("prefix=" + prefix + ", type=" + type + ", publish_key=" + publishKey + ", subscribe_key=" + subscribeKey + ", pub_sub_key=" + pubSubKey);
+                    System.out.println("prefix=" + group + ", type=" + type + ", publish_key=" + publishKey + ", subscribe_key=" + subscribeKey + ", pub_sub_key=" + pubSubKey);
 
-                    keys.put(prefix, new Key("private".equals(type), publishKey, subscribeKey, pubSubKey));
+                    Key key = keys.get(group);
+                    if (key == null) {
+                        key = new Key();
+                        keys.put(group, key);
+                    }
+                    key.addKey(publishKey, Key.KeyType.PUBLISH);
+                    key.addKey(subscribeKey, Key.KeyType.SUBSCRIBE);
+                    key.addKey(pubSubKey, Key.KeyType.PUB_SUB);
                 });
                 break;
         }

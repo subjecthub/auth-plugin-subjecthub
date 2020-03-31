@@ -16,12 +16,12 @@ public class MySqlAccess {
     private PreparedStatement preparedStatement = null;
     private ResultSet resultSet = null;
 
-    public Map<String, Key> readDataBase(String ip, String db, String username, String password) throws Exception {
+    public Map<String, Key> readKeysFromDataBase(String ip, String db, String username, String password) throws Exception {
         String url = "jdbc:mysql://" + ip +"/" + db;
 
         try {
             // This will load the MySQL driver, each DB has its own driver
-            Class.forName("com.mysql.jdbc.Driver");
+            Class.forName("com.mysql.cj.jdbc.Driver");
 
             // Setup the connection with the DB
             connect = DriverManager.getConnection(url, username, password);
@@ -30,7 +30,7 @@ public class MySqlAccess {
             statement = connect.createStatement();
 
             // Result set get the result of the SQL query
-            resultSet = statement.executeQuery("select * from subjects INNER JOIN `keys` ON keys.id=subjects.key_id INNER JOIN users ON users.id=subjects.user_id");
+            resultSet = statement.executeQuery("select * from `keys` INNER JOIN `groups` ON groups.id=keys.group_id");
             return writeResultSet(resultSet);
         } catch (Exception e) {
             throw e;
@@ -39,25 +39,66 @@ public class MySqlAccess {
         }
     }
 
+    public Map<String, Boolean> readPublicSubjectsFromDataBase(String ip, String db, String username, String password) throws Exception {
+
+        Map<String, Boolean> publicSubjects = new HashMap<>();
+
+        String url = "jdbc:mysql://" + ip +"/" + db;
+
+        try {
+            // This will load the MySQL driver, each DB has its own driver
+            Class.forName("com.mysql.cj.jdbc.Driver");
+
+            // Setup the connection with the DB
+            connect = DriverManager.getConnection(url, username, password);
+
+            PreparedStatement statement = connect.prepareStatement("select * from subjects INNER JOIN `groups` ON groups.id=subjects.group_id WHERE subjects.type = ?");
+            statement.setString(1, "public");
+            ResultSet resultSet = statement.executeQuery();
+
+            System.out.println("Load from database:");
+            while (resultSet.next()) {
+                String group = resultSet.getString("groups.name");
+
+                String subject = resultSet.getString("subjects.subject");
+
+                System.out.println("group=" + group + ", subject=" + subject);
+
+                publicSubjects.put("/" + group + "/" + subject, Boolean.TRUE);
+            }
+        } catch (Exception e) {
+            throw e;
+        } finally {
+            close();
+        }
+
+        return publicSubjects;
+    }
+
     private Map<String, Key> writeResultSet(ResultSet resultSet) throws SQLException {
-        Map<String, Key> subjectToKey = new HashMap<>();
+        Map<String, Key> groupToKey = new HashMap<>();
         // ResultSet is initially before the first data set
         System.out.println("Load from database:");
         while (resultSet.next()) {
-            String subject = resultSet.getString("subject");
-            String username = resultSet.getString("username");
+            String group = resultSet.getString("groups.name");
 
             String publish_key = resultSet.getString("publish_key");
             String subscribe_key = resultSet.getString("subscribe_key");
             String pub_sub_key = resultSet.getString("pub_sub_key");
-            String type = resultSet.getString("type");
 
-            System.out.println("subject=" + subject + ", publish_key=" + publish_key + ", username=" + username);
+            System.out.println("group=" + group + ", publish_key=" + publish_key);
 
-            subjectToKey.put("/" + username + "/" + subject, new Key("private".equals(type), publish_key, subscribe_key, pub_sub_key));
+            Key key = groupToKey.get(group);
+            if (key == null) {
+                key = new Key();
+                groupToKey.put(group, key);
+            }
+            key.addKey(publish_key, Key.KeyType.PUBLISH);
+            key.addKey(subscribe_key, Key.KeyType.SUBSCRIBE);
+            key.addKey(pub_sub_key, Key.KeyType.PUB_SUB);
         }
 
-        return subjectToKey;
+        return groupToKey;
     }
 
     // You need to close the resultSet

@@ -1,38 +1,39 @@
 package com.migratorydata.extensions.authorization;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class Key {
 
-    private boolean privatePrefix;
-    private String publishKey;
-    private String subscribeKey;
-    private String pubSubKey;
+    private Map<String, KeyType> keys = new HashMap<>();
 
-    public Key(boolean privatePrefix, String publishKey, String subscribeKey, String pubSubKey) {
-        this.privatePrefix = privatePrefix;
-        this.publishKey = publishKey;
-        this.subscribeKey = subscribeKey;
-        this.pubSubKey = pubSubKey;
+    public void addKey(String key, KeyType type) {
+        keys.put(key, type);
     }
 
-    public boolean checkSubscribePrivate(String key) {
-        if (key.equals(subscribeKey) || key.equals(pubSubKey)) {
-            return true;
+    public boolean checkSubscribe(String secretKey) {
+        KeyType keyType = keys.get(secretKey);
+        if (keyType == null) {
+            return false;
         }
-        return false;
-    }
-
-    public boolean checkPublishPrivate(String key) {
-        if (key.equals(publishKey) || key.equals(pubSubKey)) {
-            return true;
+        if (keyType == KeyType.PUBLISH) {
+            return false;
         }
-        return false;
+        return true;
     }
 
-    public boolean checkPublishPublic(String key) {
-        return key.equals(publishKey);
+    public boolean checkPublish(String secretKey) {
+        KeyType keyType = keys.get(secretKey);
+        if (keyType == null) {
+            return false;
+        }
+        if (keyType == KeyType.SUBSCRIBE) {
+            return false;
+        }
+        return true;
     }
 
-    public boolean isPrivatePrefix() {
-        return privatePrefix;
+    public enum KeyType {
+        SUBSCRIBE, PUBLISH, PUB_SUB
     }
 }

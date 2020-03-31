@@ -7,7 +7,9 @@ public class MySqlAccessTest {
     @Test
     public void testDB() throws Exception {
         MySqlAccess sql = new MySqlAccess();
-        sql.readDataBase("192.168.10.10:3306", "subjecthub", "homestead", "secret");
+        sql.readKeysFromDataBase("192.168.10.10:3306", "subjecthub", "homestead", "secret");
+
+        sql.readPublicSubjectsFromDataBase("192.168.10.10:3306", "subjecthub", "homestead", "secret");
     }
 
 }

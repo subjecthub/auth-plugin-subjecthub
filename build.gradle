@@ -19,6 +19,8 @@ jar {
 // In this section you declare the dependencies for your production and test code
 dependencies {
     compile files('libs/migratorydata-extension-authorization.jar')
+    compile files('libs/migratorydata-extension-presence.jar')
+
     compile files('libs/migratorydata-client-java.jar')
     compile files('libs/mysql-connector-java-8.0.19.jar')
     compile group: 'org.json', name: 'json', version: '20190722'

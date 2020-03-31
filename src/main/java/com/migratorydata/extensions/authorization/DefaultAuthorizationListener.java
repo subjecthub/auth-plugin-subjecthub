@@ -7,6 +7,7 @@ public class DefaultAuthorizationListener implements MigratoryDataEntitlementLis
     private SecretKeyManager secretKeyManager = new SecretKeyManager();
 
 	public DefaultAuthorizationListener() {
+	    System.out.println("@@@@@@@ CREATE AUTHORIZATION LISTENER INSTANCE @@@@@@");
         Thread loop = new Thread(secretKeyManager);
         loop.setDaemon(true);
         loop.setName("SecretKeyManagerLoop");
@@ -28,16 +29,16 @@ public class DefaultAuthorizationListener implements MigratoryDataEntitlementLis
                         migratoryDataSubscribeRequest.setAllowed(subject, false);
                     }
                 } else {
-                    String prefix = getPrefix(subject);
-                    Key key = secretKeyManager.getKey(prefix);
-                    if (key != null) {
-                        if (key.isPrivatePrefix()) {
-                            migratoryDataSubscribeRequest.setAllowed(subject, key.checkSubscribePrivate(secretKey));
-                        } else {
-                            migratoryDataSubscribeRequest.setAllowed(subject, true);
-                        }
+                    if (secretKeyManager.isPublicSubject(subject)) {
+                        migratoryDataSubscribeRequest.setAllowed(subject, true);
                     } else {
-                        migratoryDataSubscribeRequest.setAllowed(subject, false);
+                        String group = getGroup(subject);
+                        Key key = secretKeyManager.getGroupKeys(group);
+                        if (key != null && key.checkSubscribe(secretKey)) {
+                            migratoryDataSubscribeRequest.setAllowed(subject, true);
+                        } else {
+                            migratoryDataSubscribeRequest.setAllowed(subject, false);
+                        }
                     }
                 }
             }
@@ -62,14 +63,12 @@ public class DefaultAuthorizationListener implements MigratoryDataEntitlementLis
                 String subject = migratoryDataPublishRequest.getSubject();
                 String secretKey = migratoryDataPublishRequest.getClientCredentials().getToken();
 
-                String prefix = getPrefix(subject);
-                Key key = secretKeyManager.getKey(prefix);
-                if (key != null) {
-                    if (key.isPrivatePrefix()) {
-                        migratoryDataPublishRequest.setAllowed(key.checkPublishPrivate(secretKey));
-                    } else {
-                        migratoryDataPublishRequest.setAllowed(key.checkPublishPublic(secretKey));
-                    }
+                String group = getGroup(subject);
+                Key key = secretKeyManager.getGroupKeys(group);
+                if (key != null && key.checkPublish(secretKey)) {
+                    migratoryDataPublishRequest.setAllowed(true);
+                } else {
+                    migratoryDataPublishRequest.setAllowed(false);
                 }
 
                 migratoryDataPublishRequest.sendResponse();
@@ -77,16 +76,12 @@ public class DefaultAuthorizationListener implements MigratoryDataEntitlementLis
         }
 	}
 
-	private String getPrefix(String subject) {
+	private String getGroup(String subject) {
 	    int endFirstSegment = subject.indexOf("/", 1);
 	    if (endFirstSegment == -1) {
 	        return subject;
         }
-	    int endSecondSegment = subject.indexOf("/", endFirstSegment + 1);
-        if (endSecondSegment == -1) {
-            return subject;
-        } else {
-            return subject.substring(0, endSecondSegment);
-        }
+        return subject.substring(1, endFirstSegment);
     }
+
 }
