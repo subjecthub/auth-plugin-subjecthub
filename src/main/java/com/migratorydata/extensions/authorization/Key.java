@@ -33,6 +33,10 @@ public class Key {
         return true;
     }
 
+    public void removeKey(String key) {
+        keys.remove(key);
+    }
+
     public enum KeyType {
         SUBSCRIBE, PUBLISH, PUB_SUB
     }

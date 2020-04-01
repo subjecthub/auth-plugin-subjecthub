@@ -125,24 +125,50 @@ public class SecretKeyManager implements MigratoryDataListener, MigratoryDataLog
             case RECOVERED:
                 queue.offer(() -> {
                     JSONObject jsonObject = new JSONObject(new String(migratoryDataMessage.getContent()));
-                    String group = (String) jsonObject.get("prefix");
-                    String publishKey = (String) jsonObject.get("publish_key");
-                    String subscribeKey = (String) jsonObject.get("subscribe_key");
-                    String pubSubKey = (String) jsonObject.get("pub_sub_key");
-                    String type = (String) jsonObject.get("type");
+
+                    System.out.println("Received Json: " + jsonObject.toString());
+
                     String operation = (String) jsonObject.get("operation");
+                    if ("update_keys".equals(operation)) {
+                        String group = (String) jsonObject.get("group");
+                        String publishKey = (String) jsonObject.get("publish_key");
+                        String subscribeKey = (String) jsonObject.get("subscribe_key");
+                        String pubSubKey = (String) jsonObject.get("pub_sub_key");
+                        String type = (String) jsonObject.get("type");
 
-                    System.out.println("Update keys with:");
-                    System.out.println("prefix=" + group + ", type=" + type + ", publish_key=" + publishKey + ", subscribe_key=" + subscribeKey + ", pub_sub_key=" + pubSubKey);
+                        if ("add".equals(type)) {
+//                            System.out.println("Update keys with:");
+//                            System.out.println("prefix=" + group + ", type=" + type + ", publish_key=" + publishKey + ", subscribe_key=" + subscribeKey + ", pub_sub_key=" + pubSubKey);
 
-                    Key key = keys.get(group);
-                    if (key == null) {
-                        key = new Key();
-                        keys.put(group, key);
+                            Key key = keys.get(group);
+                            if (key == null) {
+                                key = new Key();
+                                keys.put(group, key);
+                            }
+                            key.addKey(publishKey, Key.KeyType.PUBLISH);
+                            key.addKey(subscribeKey, Key.KeyType.SUBSCRIBE);
+                            key.addKey(pubSubKey, Key.KeyType.PUB_SUB);
+                        } else if ("delete".equals(type)) {
+                            Key key = keys.get(group);
+                            if (key != null) {
+                                key.removeKey(publishKey);
+                                key.removeKey(subscribeKey);
+                                key.removeKey(pubSubKey);
+                            }
+                        }
+                    } else if ("update_public_subjects".equals(operation)) {
+                        String subject = (String) jsonObject.get("subject");
+                        String type = (String) jsonObject.get("type");
+                        if ("add".equals(type)) {
+                            publicSubjects.put(subject, Boolean.TRUE);
+                        } else if ("update".equals(type)) {
+                            String oldSubject = (String) jsonObject.get("old_subject");
+                            publicSubjects.remove(oldSubject);
+                            publicSubjects.put(subject, Boolean.TRUE);
+                        } else if ("delete".equals(type)) {
+                            publicSubjects.remove(subject);
+                        }
                     }
-                    key.addKey(publishKey, Key.KeyType.PUBLISH);
-                    key.addKey(subscribeKey, Key.KeyType.SUBSCRIBE);
-                    key.addKey(pubSubKey, Key.KeyType.PUB_SUB);
                 });
                 break;
         }
