@@ -29,17 +29,19 @@ public class DefaultAuthorizationListener implements MigratoryDataEntitlementLis
                         migratoryDataSubscribeRequest.setAllowed(subject, false);
                     }
                 } else {
-                    if (secretKeyManager.isPublicSubject(subject)) {
-                        migratoryDataSubscribeRequest.setAllowed(subject, true);
-                    } else {
-                        String group = getGroup(subject);
-                        Key key = secretKeyManager.getGroupKeys(group);
-                        if (key != null && key.checkSubscribe(secretKey)) {
-                            migratoryDataSubscribeRequest.setAllowed(subject, true);
+                    boolean allowSubscribe = false;
+                    String[] subjectHubIdAndGroup = getSubjectHubIdAndGroup(subject);
+                    if (subjectHubIdAndGroup != null) {
+                        if (secretKeyManager.isPublicSubject(subjectHubIdAndGroup[0], subjectHubIdAndGroup[1], subject)) {
+                            allowSubscribe = true;
                         } else {
-                            migratoryDataSubscribeRequest.setAllowed(subject, false);
+                            Key key = secretKeyManager.getGroupKeys(subjectHubIdAndGroup[0]);
+                            if (key != null && key.checkSubscribe(subjectHubIdAndGroup[1], secretKey)) {
+                                allowSubscribe = true;
+                            }
                         }
                     }
+                    migratoryDataSubscribeRequest.setAllowed(subject, allowSubscribe);
                 }
             }
 
@@ -63,12 +65,14 @@ public class DefaultAuthorizationListener implements MigratoryDataEntitlementLis
                 String subject = migratoryDataPublishRequest.getSubject();
                 String secretKey = migratoryDataPublishRequest.getClientCredentials().getToken();
 
-                String group = getGroup(subject);
-                Key key = secretKeyManager.getGroupKeys(group);
-                if (key != null && key.checkPublish(secretKey)) {
-                    migratoryDataPublishRequest.setAllowed(true);
-                } else {
-                    migratoryDataPublishRequest.setAllowed(false);
+                String[] subjectHubIdAndGroup = getSubjectHubIdAndGroup(subject);
+                if (subjectHubIdAndGroup != null) {
+                    Key key = secretKeyManager.getGroupKeys(subjectHubIdAndGroup[0]);
+                    if (key != null && key.checkPublish(subjectHubIdAndGroup[1], secretKey)) {
+                        migratoryDataPublishRequest.setAllowed(true);
+                    } else {
+                        migratoryDataPublishRequest.setAllowed(false);
+                    }
                 }
 
                 migratoryDataPublishRequest.sendResponse();
@@ -76,12 +80,17 @@ public class DefaultAuthorizationListener implements MigratoryDataEntitlementLis
         }
 	}
 
-	private String getGroup(String subject) {
-	    int endFirstSegment = subject.indexOf("/", 1);
-	    if (endFirstSegment == -1) {
-	        return subject;
+	public static String[] getSubjectHubIdAndGroup(String subject) {
+	    String[] elements = subject.split("/");
+
+	    if (elements.length >= 3) {
+	        String[] result = new String[2];
+	        result[0] = elements[1];
+	        result[1] = elements[2];
+	        return result;
         }
-        return subject.substring(1, endFirstSegment);
+
+	    return null;
     }
 
 }
