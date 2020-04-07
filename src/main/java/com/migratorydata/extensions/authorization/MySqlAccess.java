@@ -16,12 +16,18 @@ public class MySqlAccess {
     private PreparedStatement preparedStatement = null;
     private ResultSet resultSet = null;
 
-    public Map<String, Key> readKeysFromDataBase(String ip, String db, String username, String password) throws Exception {
-        String url = "jdbc:mysql://" + ip +"/" + db;
+    public Map<String, Key> readKeysFromDataBase(String dbConnector, String ip, String db, String username, String password) throws Exception {
 
         try {
+            String url = "jdbc:mysql://" + ip +"/" + db;
+
             // This will load the MySQL driver, each DB has its own driver
-            Class.forName("com.mysql.cj.jdbc.Driver");
+            if (dbConnector.equals("mysql")) {
+                Class.forName("com.mysql.cj.jdbc.Driver");
+            } else {
+                Class.forName("org.mariadb.jdbc.Driver");
+                url = "jdbc:mariadb://" + ip +"/" + db;
+            }
 
             // Setup the connection with the DB
             connect = DriverManager.getConnection(url, username, password);
@@ -39,7 +45,7 @@ public class MySqlAccess {
         }
     }
 
-    public Map<String, Groups> readPublicSubjectsFromDataBase(String ip, String db, String username, String password) throws Exception {
+    public Map<String, Groups> readPublicSubjectsFromDataBase(String dbConnector, String ip, String db, String username, String password) throws Exception {
 
         Map<String, Groups> publicSubjects = new HashMap<>();
 
@@ -47,7 +53,12 @@ public class MySqlAccess {
 
         try {
             // This will load the MySQL driver, each DB has its own driver
-            Class.forName("com.mysql.cj.jdbc.Driver");
+            if (dbConnector.equals("mysql")) {
+                Class.forName("com.mysql.cj.jdbc.Driver");
+            } else {
+                Class.forName("org.mariadb.jdbc.Driver");
+                url = "jdbc:mariadb://" + ip +"/" + db;
+            }
 
             // Setup the connection with the DB
             connect = DriverManager.getConnection(url, username, password);

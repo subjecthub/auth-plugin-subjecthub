@@ -18,43 +18,67 @@ public class SecretKeyManager implements MigratoryDataListener, MigratoryDataLog
     private static String serviceSubject = "/migratory/secret";
     private static String cluster = "192.168.1.104:8800";
 
+    private static String dbConnector = "mysql";
     private static String dbIp;
     private static String dbName;
     private static String user;
     private static String password;
 
     static {
+        boolean loadConfig = false;
         Properties prop = null;
 
-        try (InputStream input = new FileInputStream("./extensions/" + authFileName)) {
-            System.out.println("load from ./extensions/" + authFileName);
-            prop = new Properties();
-            prop.load(input);
-        } catch (IOException ex) {
-            ex.printStackTrace();
+        if (loadConfig == false) {
+            try (InputStream input = new FileInputStream("/usr/share/migratorydata/extensions/" + authFileName)) {
+                System.out.println("load from /usr/share/migratorydata/extensions/" + authFileName);
+                prop = new Properties();
+                prop.load(input);
+                loadConfig = true;
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        }
 
+        if (loadConfig == false) {
+            try (InputStream input = new FileInputStream("./extensions/" + authFileName)) {
+                System.out.println("load from ./extensions/" + authFileName);
+                prop = new Properties();
+                prop.load(input);
+                loadConfig = true;
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+
+        }
+
+        if (loadConfig == false) {
             try (InputStream input = new FileInputStream("./" + authFileName)) {
                 System.out.println("load from ./" + authFileName);
                 prop = new Properties();
                 prop.load(input);
+                loadConfig = true;
             } catch (IOException exx) {
                 exx.printStackTrace();
-
-                try (InputStream input = SecretKeyManager.class.getClassLoader().getResourceAsStream(authFileName)) {
-                    System.out.println("load from resources = " + authFileName);
-                    prop = new Properties();
-                    prop.load(input);
-                } catch (IOException exxx) {
-                    exxx.printStackTrace();
-                }
             }
         }
 
-        if (prop != null) {
+        if (loadConfig == false) {
+            try (InputStream input = SecretKeyManager.class.getClassLoader().getResourceAsStream(authFileName)) {
+                System.out.println("load from resources = " + authFileName);
+                prop = new Properties();
+                prop.load(input);
+                loadConfig = true;
+            } catch (IOException exxx) {
+                exxx.printStackTrace();
+            }
+        }
+
+        if (loadConfig) {
             token = prop.getProperty("service.token");
             serviceSubject = prop.getProperty("service.subject");
             cluster = prop.getProperty("service.cluster");
 
+            dbConnector = prop.getProperty("db.connector");
             dbIp = prop.getProperty("db.ip");
             dbName = prop.getProperty("db.name");
             user = prop.getProperty("db.user");
@@ -85,12 +109,12 @@ public class SecretKeyManager implements MigratoryDataListener, MigratoryDataLog
             queue.offer(() -> {
                MySqlAccess mySqlAccess = new MySqlAccess();
                 try {
-                    Map<String, Key> subjectToKey = mySqlAccess.readKeysFromDataBase(dbIp, dbName, user, password);
+                    Map<String, Key> subjectToKey = mySqlAccess.readKeysFromDataBase(dbConnector, dbIp, dbName, user, password);
                     if (subjectToKey.size() > 0) {
                         keys.putAll(subjectToKey);
                     }
 
-                    publicSubjects.putAll(mySqlAccess.readPublicSubjectsFromDataBase(dbIp, dbName, user, password));
+                    publicSubjects.putAll(mySqlAccess.readPublicSubjectsFromDataBase(dbConnector, dbIp, dbName, user, password));
                     //publicSubjects.forEach((key, value) -> System.out.println(key + ":" + value));
                 } catch (Exception e) {
                     e.printStackTrace();
