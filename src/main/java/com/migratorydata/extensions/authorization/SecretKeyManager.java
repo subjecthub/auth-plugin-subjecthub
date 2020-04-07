@@ -93,7 +93,7 @@ public class SecretKeyManager implements MigratoryDataListener, MigratoryDataLog
 
     private Map<String, Key> keys = new HashMap<>(); // subject -> secret_key
 
-    private Map<String, Application> appSubjects = new HashMap<>();
+    //private Map<String, Application> appSubjects = new HashMap<>();
     private Map<String, Boolean> publicSubjects = new HashMap<>();
 
     private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
@@ -166,7 +166,7 @@ public class SecretKeyManager implements MigratoryDataListener, MigratoryDataLog
                         } else if ("delete".equals(opType)) {
                             keys.remove(appId);
 
-                            appSubjects.remove(appId);
+                            //appSubjects.remove(appId);
                         }
                     }
 
@@ -204,23 +204,27 @@ public class SecretKeyManager implements MigratoryDataListener, MigratoryDataLog
 
                         String type = (String) jsonObject.get("op_type");
                         if ("add".equals(type)) {
-                            Application application = appSubjects.get(appId);
-                            if (application == null) {
-                                application = new Application();
-                                appSubjects.put(appId, application);
-                            }
-                            application.addSubject(subject);
+                            publicSubjects.put(subject, Boolean.TRUE);
+//                            Application application = appSubjects.get(appId);
+//                            if (application == null) {
+//                                application = new Application();
+//                                appSubjects.put(appId, application);
+//                            }
+//                            application.addSubject(subject);
                         } else if ("update".equals(type)) {
                             String oldSubject = (String) jsonObject.get("old_subject");
-                            Application application = appSubjects.get(appId);
-                            if (application != null) {
-                                application.updateSubject(oldSubject, subject);
-                            }
+//                            Application application = appSubjects.get(appId);
+//                            if (application != null) {
+//                                application.updateSubject(oldSubject, subject);
+//                            }
+                            publicSubjects.remove(oldSubject);
+                            publicSubjects.put(subject, Boolean.TRUE);
                         } else if ("delete".equals(type)) {
-                            Application application = appSubjects.get(appId);
-                            if (application != null) {
-                                application.deleteSubject(subject);
-                            }
+                            publicSubjects.remove(subject);
+//                            Application application = appSubjects.get(appId);
+//                            if (application != null) {
+//                                application.deleteSubject(subject);
+//                            }
                         }
                     }
                 });
