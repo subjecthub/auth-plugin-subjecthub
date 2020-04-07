@@ -18,25 +18,25 @@ public class DefaultAuthorizationListener implements MigratoryDataEntitlementLis
 	public void onSubscribe(MigratoryDataSubscribeRequest migratoryDataSubscribeRequest) {
 		System.out.println("Got subscribe request=" + migratoryDataSubscribeRequest);
         secretKeyManager.offer(() -> {
-            String secretKey = migratoryDataSubscribeRequest.getClientCredentials().getToken();
+            String token = migratoryDataSubscribeRequest.getClientCredentials().getToken();
             List<String> subjects = migratoryDataSubscribeRequest.getSubjects();
             for (String subject : subjects) {
                 // auth service client
                 if (subject.equals(secretKeyManager.getServiceSubject())) {
-                    if (secretKey.equals(secretKeyManager.getServiceToken())) {
+                    if (token.equals(secretKeyManager.getServiceToken())) {
                         migratoryDataSubscribeRequest.setAllowed(subject, true);
                     } else {
                         migratoryDataSubscribeRequest.setAllowed(subject, false);
                     }
                 } else {
                     boolean allowSubscribe = false;
-                    String[] subjectHubIdAndGroup = getSubjectHubIdAndGroup(subject);
-                    if (subjectHubIdAndGroup != null) {
-                        if (secretKeyManager.isPublicSubject(subjectHubIdAndGroup[0], subjectHubIdAndGroup[1], subject)) {
-                            allowSubscribe = true;
-                        } else {
-                            Key key = secretKeyManager.getGroupKeys(subjectHubIdAndGroup[0]);
-                            if (key != null && key.checkSubscribe(subjectHubIdAndGroup[1], secretKey)) {
+                    if (secretKeyManager.isPublicSubject(subject)) {
+                        allowSubscribe = true;
+                    } else {
+                        String[] appIdAndSecret = getAppIdAndSecret(token);
+                        if (appIdAndSecret != null) {
+                            Key key = secretKeyManager.getAppKeys(appIdAndSecret[0]);
+                            if (key != null && key.checkSubscribe(appIdAndSecret[1])) {
                                 allowSubscribe = true;
                             }
                         }
@@ -63,12 +63,12 @@ public class DefaultAuthorizationListener implements MigratoryDataEntitlementLis
         } else {
             secretKeyManager.offer(() -> {
                 String subject = migratoryDataPublishRequest.getSubject();
-                String secretKey = migratoryDataPublishRequest.getClientCredentials().getToken();
+                String token = migratoryDataPublishRequest.getClientCredentials().getToken();
 
-                String[] subjectHubIdAndGroup = getSubjectHubIdAndGroup(subject);
-                if (subjectHubIdAndGroup != null) {
-                    Key key = secretKeyManager.getGroupKeys(subjectHubIdAndGroup[0]);
-                    if (key != null && key.checkPublish(subjectHubIdAndGroup[1], secretKey)) {
+                String[] appIdAndSecret = getAppIdAndSecret(token);
+                if (appIdAndSecret != null) {
+                    Key key = secretKeyManager.getAppKeys(appIdAndSecret[0]);
+                    if (key != null && key.checkPublish(appIdAndSecret[1])) {
                         migratoryDataPublishRequest.setAllowed(true);
                     } else {
                         migratoryDataPublishRequest.setAllowed(false);
@@ -80,14 +80,11 @@ public class DefaultAuthorizationListener implements MigratoryDataEntitlementLis
         }
 	}
 
-	public static String[] getSubjectHubIdAndGroup(String subject) {
-	    String[] elements = subject.split("/");
+	public static String[] getAppIdAndSecret(String token) {
+	    String[] elements = token.split(":");
 
-	    if (elements.length >= 3) {
-	        String[] result = new String[2];
-	        result[0] = elements[1];
-	        result[1] = elements[2];
-	        return result;
+	    if (elements.length == 2) {
+	        return elements;
         }
 
 	    return null;

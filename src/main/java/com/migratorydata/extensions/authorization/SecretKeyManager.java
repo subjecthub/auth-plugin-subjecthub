@@ -92,7 +92,9 @@ public class SecretKeyManager implements MigratoryDataListener, MigratoryDataLog
     private Queue<Runnable> queue = new ConcurrentLinkedQueue<>();
 
     private Map<String, Key> keys = new HashMap<>(); // subject -> secret_key
-    private Map<String, Groups> publicSubjects = new HashMap<>();
+
+    private Map<String, Application> appSubjects = new HashMap<>();
+    private Map<String, Boolean> publicSubjects = new HashMap<>();
 
     private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
@@ -115,7 +117,7 @@ public class SecretKeyManager implements MigratoryDataListener, MigratoryDataLog
                     }
 
                     publicSubjects.putAll(mySqlAccess.readPublicSubjectsFromDataBase(dbConnector, dbIp, dbName, user, password));
-                    //publicSubjects.forEach((key, value) -> System.out.println(key + ":" + value));
+                    //appSubjects.forEach((key, value) -> System.out.println(key + ":" + value));
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -135,16 +137,12 @@ public class SecretKeyManager implements MigratoryDataListener, MigratoryDataLog
         return serviceSubject;
     }
 
-    public Key getGroupKeys(String group) {
+    public Key getAppKeys(String group) {
         return keys.get(group);
     }
 
-    public boolean isPublicSubject(String subjectHubId, String group, String subject) {
-        Groups groups = publicSubjects.get(subjectHubId);
-        if (groups != null) {
-            return groups.containsSubject(group, subject);
-        }
-        return false;
+    public boolean isPublicSubject(String subject) {
+        return publicSubjects.containsKey(subject);
     }
 
     @Override
@@ -161,83 +159,67 @@ public class SecretKeyManager implements MigratoryDataListener, MigratoryDataLog
 
                     if ("update_groups".equals(operation)) {
                         String subjectHubID = (String) jsonObject.get("subjecthub_id");
-                        String group = (String) jsonObject.get("group");
+                        String appId = (String) jsonObject.get("app_id");
 
                         String opType = (String) jsonObject.get("op_type");
                         if ("update".equals(opType)) {
-                            String oldGroup = (String) jsonObject.get("old_group");
-                            Key key = keys.get(subjectHubID);
-                            if (key != null) {
-                                key.renameGroup(oldGroup, group);
-                            }
-
-                            Groups groups = publicSubjects.get(subjectHubID);
-                            if (groups != null) {
-                                groups.renameGroup(subjectHubID, oldGroup, group);
-                            }
                         } else if ("delete".equals(opType)) {
-                            Key key = keys.get(subjectHubID);
-                            if (key != null) {
-                                key.deleteGroup(group);
-                            }
+                            keys.remove(appId);
 
-                            Groups groups = publicSubjects.get(subjectHubID);
-                            if (groups != null) {
-                                groups.deleteGroup(group);
-                            }
+                            appSubjects.remove(appId);
                         }
                     }
 
                     if ("update_keys".equals(operation)) {
-                        String subjectHubID = (String) jsonObject.get("subjecthub_id");
-                        String group = (String) jsonObject.get("group");
+                        //String subjectHubID = (String) jsonObject.get("subjecthub_id");
+                        String appId = (String) jsonObject.get("app_id");
                         String publishKey = (String) jsonObject.get("publish_key");
                         String subscribeKey = (String) jsonObject.get("subscribe_key");
                         String pubSubKey = (String) jsonObject.get("pub_sub_key");
 
                         String type = (String) jsonObject.get("op_type");
                         if ("add".equals(type)) {
-                            Key key = keys.get(subjectHubID);
+                            Key key = keys.get(appId);
                             if (key == null) {
                                 key = new Key();
-                                keys.put(subjectHubID, key);
+                                keys.put(appId, key);
                             }
-                            key.addKey(group, publishKey, Key.KeyType.PUBLISH);
-                            key.addKey(group, subscribeKey, Key.KeyType.SUBSCRIBE);
-                            key.addKey(group, pubSubKey, Key.KeyType.PUB_SUB);
+                            key.addKey(publishKey, Key.KeyType.PUBLISH);
+                            key.addKey(subscribeKey, Key.KeyType.SUBSCRIBE);
+                            key.addKey(pubSubKey, Key.KeyType.PUB_SUB);
                         } else if ("delete".equals(type)) {
-                            Key key = keys.get(subjectHubID);
+                            Key key = keys.get(appId);
                             if (key != null) {
-                                key.removeKey(group, publishKey);
-                                key.removeKey(group, subscribeKey);
-                                key.removeKey(group, pubSubKey);
+                                key.removeKey(publishKey);
+                                key.removeKey(subscribeKey);
+                                key.removeKey(pubSubKey);
                             }
                         }
                     }
 
                     if ("update_public_subjects".equals(operation)) {
-                        String subjectHubID = (String) jsonObject.get("subjecthub_id");
-                        String group = (String) jsonObject.get("group");
+//                        String subjectHubID = (String) jsonObject.get("subjecthub_id");
+                        String appId = (String) jsonObject.get("app_id");
                         String subject = (String) jsonObject.get("subject");
 
                         String type = (String) jsonObject.get("op_type");
                         if ("add".equals(type)) {
-                            Groups groups = publicSubjects.get(subjectHubID);
-                            if (groups == null) {
-                                groups = new Groups();
-                                publicSubjects.put(subjectHubID, groups);
+                            Application application = appSubjects.get(appId);
+                            if (application == null) {
+                                application = new Application();
+                                appSubjects.put(appId, application);
                             }
-                            groups.addSubject(group, subject);
+                            application.addSubject(subject);
                         } else if ("update".equals(type)) {
                             String oldSubject = (String) jsonObject.get("old_subject");
-                            Groups groups = publicSubjects.get(subjectHubID);
-                            if (groups != null) {
-                                groups.updateSubject(group, oldSubject, subject);
+                            Application application = appSubjects.get(appId);
+                            if (application != null) {
+                                application.updateSubject(oldSubject, subject);
                             }
                         } else if ("delete".equals(type)) {
-                            Groups groups = publicSubjects.get(subjectHubID);
-                            if (groups != null) {
-                                groups.deleteSubject(group, subject);
+                            Application application = appSubjects.get(appId);
+                            if (application != null) {
+                                application.deleteSubject(subject);
                             }
                         }
                     }

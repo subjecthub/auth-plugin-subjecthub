@@ -5,23 +5,13 @@ import java.util.Map;
 
 public class Key {
 
-    private Map<String, Map<String, KeyType>> groupTokeys = new HashMap<>();
+    private Map<String, KeyType> keys = new HashMap<>();
 
-    public void addKey(String group, String key, KeyType type) {
-        Map<String, KeyType> keys = groupTokeys.get(group);
-        if (keys == null) {
-            keys = new HashMap<>();
-            groupTokeys.put(group, keys);
-        }
+    public void addKey(String key, KeyType type) {
         keys.put(key, type);
     }
 
-    public boolean checkSubscribe(String group, String secretKey) {
-        Map<String, KeyType> keys = groupTokeys.get(group);
-        if (keys == null) {
-            return false;
-        }
-
+    public boolean checkSubscribe(String secretKey) {
         KeyType keyType = keys.get(secretKey);
         if (keyType == null) {
             return false;
@@ -32,12 +22,7 @@ public class Key {
         return true;
     }
 
-    public boolean checkPublish(String group, String secretKey) {
-        Map<String, KeyType> keys = groupTokeys.get(group);
-        if (keys == null) {
-            return false;
-        }
-
+    public boolean checkPublish(String secretKey) {
         KeyType keyType = keys.get(secretKey);
         if (keyType == null) {
             return false;
@@ -48,22 +33,8 @@ public class Key {
         return true;
     }
 
-    public void removeKey(String group, String key) {
-        Map<String, KeyType> keys = groupTokeys.get(group);
-        if (keys != null) {
-            keys.remove(key);
-        }
-    }
-
-    public void renameGroup(String oldGroup, String newGroup) {
-        Map<String, KeyType> keys = groupTokeys.remove(oldGroup);
-        if (keys != null) {
-            groupTokeys.put(newGroup, keys);
-        }
-    }
-
-    public void deleteGroup(String group) {
-        groupTokeys.remove(group);
+    public void removeKey(String key) {
+        keys.remove(key);
     }
 
     public enum KeyType {

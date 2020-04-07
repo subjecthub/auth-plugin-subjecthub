@@ -36,7 +36,7 @@ public class MySqlAccess {
             statement = connect.createStatement();
 
             // Result set get the result of the SQL query
-            resultSet = statement.executeQuery("select * from `keys` INNER JOIN `groups` ON groups.id=keys.group_id INNER JOIN users ON users.id=groups.user_id");
+            resultSet = statement.executeQuery("select * from `keys` INNER JOIN `applications` ON applications.id=keys.application_id INNER JOIN users ON users.id=applications.user_id");
             return loadKeys(resultSet);
         } catch (Exception e) {
             throw e;
@@ -45,9 +45,9 @@ public class MySqlAccess {
         }
     }
 
-    public Map<String, Groups> readPublicSubjectsFromDataBase(String dbConnector, String ip, String db, String username, String password) throws Exception {
+    public Map<String, Boolean> readPublicSubjectsFromDataBase(String dbConnector, String ip, String db, String username, String password) throws Exception {
 
-        Map<String, Groups> publicSubjects = new HashMap<>();
+        Map<String, Boolean> publicSubjects = new HashMap<>();
 
         String url = "jdbc:mysql://" + ip +"/" + db;
 
@@ -63,24 +63,19 @@ public class MySqlAccess {
             // Setup the connection with the DB
             connect = DriverManager.getConnection(url, username, password);
 
-            PreparedStatement statement = connect.prepareStatement("select * from subjects INNER JOIN `groups` ON groups.id=subjects.group_id INNER JOIN `users` ON users.id=groups.user_id WHERE subjects.type = ?");
+            PreparedStatement statement = connect.prepareStatement("select * from subjects INNER JOIN `applications` ON applications.id=subjects.application_id INNER JOIN `users` ON users.id=applications.user_id WHERE subjects.type = ?");
             statement.setString(1, "public");
             ResultSet resultSet = statement.executeQuery();
 
             System.out.println("Load from database:");
             while (resultSet.next()) {
                 String subjecthub_id = resultSet.getString("users.subjecthub_id");
-                String group = resultSet.getString("groups.name");
+                String appId = resultSet.getString("applications.app_id");
                 String subject = resultSet.getString("subjects.subject");
 
-                System.out.println("subjecthub_id=" + subjecthub_id + ", group=" + group + ", subject=" + subject);
+                System.out.println("subjecthub_id=" + subjecthub_id + ", app_id=" + appId + ", subject=" + subject);
 
-                Groups groups = publicSubjects.get(subjecthub_id);
-                if (groups == null) {
-                    groups = new Groups();
-                    publicSubjects.put(subjecthub_id, groups);
-                }
-                groups.addSubject(group, "/" + subjecthub_id + "/" + group + "/" + subject);
+                publicSubjects.put("/" + subjecthub_id + "/" + subject, Boolean.TRUE);
             }
         } catch (Exception e) {
             throw e;
@@ -96,24 +91,24 @@ public class MySqlAccess {
         // ResultSet is initially before the first data set
         System.out.println("Load from database:");
         while (resultSet.next()) {
-            String subjecthubId = resultSet.getString("users.subjecthub_id");
+//            String subjecthubId = resultSet.getString("users.subjecthub_id");
 
-            String group = resultSet.getString("groups.name");
+            String appId = resultSet.getString("applications.app_id");
 
             String publish_key = resultSet.getString("publish_key");
             String subscribe_key = resultSet.getString("subscribe_key");
             String pub_sub_key = resultSet.getString("pub_sub_key");
 
-            System.out.println("subjecthubId=" + subjecthubId + ", group=" + group + ", publish_key=" + publish_key);
+            System.out.println("appId=" + appId + ", publish_key=" + publish_key);
 
-            Key key = groupToKey.get(subjecthubId);
+            Key key = groupToKey.get(appId);
             if (key == null) {
                 key = new Key();
-                groupToKey.put(subjecthubId, key);
+                groupToKey.put(appId, key);
             }
-            key.addKey(group, publish_key, Key.KeyType.PUBLISH);
-            key.addKey(group, subscribe_key, Key.KeyType.SUBSCRIBE);
-            key.addKey(group, pub_sub_key, Key.KeyType.PUB_SUB);
+            key.addKey(publish_key, Key.KeyType.PUBLISH);
+            key.addKey(subscribe_key, Key.KeyType.SUBSCRIBE);
+            key.addKey(pub_sub_key, Key.KeyType.PUB_SUB);
         }
 
         return groupToKey;
