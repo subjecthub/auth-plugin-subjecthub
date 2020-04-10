@@ -1,5 +1,10 @@
 package com.migratorydata.extensions.authorization;
 
+import com.migratorydata.extensions.user.Application;
+import com.migratorydata.extensions.user.Key;
+import com.migratorydata.extensions.user.User;
+import com.migratorydata.extensions.user.Users;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -16,102 +21,91 @@ public class MySqlAccess {
     private PreparedStatement preparedStatement = null;
     private ResultSet resultSet = null;
 
-    public Map<String, Key> readKeysFromDataBase(String dbConnector, String ip, String db, String username, String password) throws Exception {
-
+    public void loadUsers(String dbConnector, String dbIp, String dbName, String user, String password, Users users) throws Exception {
         try {
-            String url = "jdbc:mysql://" + ip +"/" + db;
-
+            String jdbcConnector = "jdbc:mysql://";
             // This will load the MySQL driver, each DB has its own driver
             if (dbConnector.equals("mysql")) {
                 Class.forName("com.mysql.cj.jdbc.Driver");
             } else {
                 Class.forName("org.mariadb.jdbc.Driver");
-                url = "jdbc:mariadb://" + ip +"/" + db;
+                jdbcConnector = "jdbc:mariadb://";
             }
 
+            String url = jdbcConnector + dbIp +"/" + dbName;
+
             // Setup the connection with the DB
-            connect = DriverManager.getConnection(url, username, password);
+            connect = DriverManager.getConnection(url, user, password);
 
             // Statements allow to issue SQL queries to the database
             statement = connect.createStatement();
 
             // Result set get the result of the SQL query
-            resultSet = statement.executeQuery("select * from `keys` INNER JOIN `applications` ON applications.id=keys.application_id INNER JOIN users ON users.id=applications.user_id");
-            return loadKeys(resultSet);
-        } catch (Exception e) {
-            throw e;
-        } finally {
-            close();
-        }
-    }
 
-    public Map<String, Boolean> readPublicSubjectsFromDataBase(String dbConnector, String ip, String db, String username, String password) throws Exception {
+            resultSet = statement.executeQuery("select * from `users`");
+            while (resultSet.next()) {
+                String subjecthubId = resultSet.getString("users.subjecthub_id");
+                int connectionsLimit = resultSet.getInt("users.connections_limit");
+                int publishLimit = resultSet.getInt("users.publish_limit");
 
-        Map<String, Boolean> publicSubjects = new HashMap<>();
-
-        String url = "jdbc:mysql://" + ip +"/" + db;
-
-        try {
-            // This will load the MySQL driver, each DB has its own driver
-            if (dbConnector.equals("mysql")) {
-                Class.forName("com.mysql.cj.jdbc.Driver");
-            } else {
-                Class.forName("org.mariadb.jdbc.Driver");
-                url = "jdbc:mariadb://" + ip +"/" + db;
+                User u = users.getUser(subjecthubId);
+                if (u == null) {
+                    u = new User(subjecthubId);
+                    users.addUser(subjecthubId, u);
+                }
+                u.updateMaxLimits(connectionsLimit, publishLimit);
             }
 
-            // Setup the connection with the DB
-            connect = DriverManager.getConnection(url, username, password);
+            resultSet = statement.executeQuery("select * from `applications` INNER JOIN `users` ON users.id=applications.user_id");
+            while (resultSet.next()) {
+                String appId = resultSet.getString("applications.app_id");
+                String subjecthubId = resultSet.getString("users.subjecthub_id");
 
-            PreparedStatement statement = connect.prepareStatement("select * from subjects INNER JOIN `applications` ON applications.id=subjects.application_id INNER JOIN `users` ON users.id=applications.user_id WHERE subjects.type = ?");
-            statement.setString(1, "public");
-            ResultSet resultSet = statement.executeQuery();
+                Application app = users.getApplication(appId);
+                if (app == null) {
+                    users.addApplication(subjecthubId, appId);
+                }
+            }
 
-            System.out.println("Load from database:");
+            resultSet = statement.executeQuery("select * from `keys` INNER JOIN `applications` ON applications.id=keys.application_id INNER JOIN users ON users.id=applications.user_id");
+            while (resultSet.next()) {
+
+                String appId = resultSet.getString("applications.app_id");
+
+                String publish_key = resultSet.getString("publish_key");
+                String subscribe_key = resultSet.getString("subscribe_key");
+                String pub_sub_key = resultSet.getString("pub_sub_key");
+
+                Key key = users.getKey(appId);
+                key.addKey(publish_key, Key.KeyType.PUBLISH);
+                key.addKey(subscribe_key, Key.KeyType.SUBSCRIBE);
+                key.addKey(pub_sub_key, Key.KeyType.PUB_SUB);
+            }
+
+            resultSet = statement.executeQuery("select * from subjects INNER JOIN `applications` ON applications.id=subjects.application_id INNER JOIN `users` ON users.id=applications.user_id");
             while (resultSet.next()) {
                 String subjecthub_id = resultSet.getString("users.subjecthub_id");
                 String appId = resultSet.getString("applications.app_id");
                 String subject = resultSet.getString("subjects.subject");
+                String subjectType = resultSet.getString("subjects.type");
 
-                System.out.println("subjecthub_id=" + subjecthub_id + ", app_id=" + appId + ", subject=" + subject);
+                String completeSubject = "/" + subjecthub_id + "/" + subject;
 
-                publicSubjects.put("/" + subjecthub_id + "/" + subject, Boolean.TRUE);
+                Application.SubjectType appSubjectType = Application.SubjectType.PRIVATE;
+                if ("public".equals(subjectType)) {
+                    users.addPublicSubject(completeSubject);
+
+                    appSubjectType = Application.SubjectType.PUBLIC;
+                }
+
+                Application app = users.getApplication (appId);
+                app.addSubject(completeSubject, appSubjectType);
             }
         } catch (Exception e) {
             throw e;
         } finally {
             close();
         }
-
-        return publicSubjects;
-    }
-
-    private Map<String, Key> loadKeys(ResultSet resultSet) throws SQLException {
-        Map<String, Key> groupToKey = new HashMap<>();
-        // ResultSet is initially before the first data set
-        System.out.println("Load from database:");
-        while (resultSet.next()) {
-//            String subjecthubId = resultSet.getString("users.subjecthub_id");
-
-            String appId = resultSet.getString("applications.app_id");
-
-            String publish_key = resultSet.getString("publish_key");
-            String subscribe_key = resultSet.getString("subscribe_key");
-            String pub_sub_key = resultSet.getString("pub_sub_key");
-
-            System.out.println("appId=" + appId + ", publish_key=" + publish_key);
-
-            Key key = groupToKey.get(appId);
-            if (key == null) {
-                key = new Key();
-                groupToKey.put(appId, key);
-            }
-            key.addKey(publish_key, Key.KeyType.PUBLISH);
-            key.addKey(subscribe_key, Key.KeyType.SUBSCRIBE);
-            key.addKey(pub_sub_key, Key.KeyType.PUB_SUB);
-        }
-
-        return groupToKey;
     }
 
     // You need to close the resultSet
@@ -131,5 +125,4 @@ public class MySqlAccess {
         } catch (Exception e) {
         }
     }
-
 }

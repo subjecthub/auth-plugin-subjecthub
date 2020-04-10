@@ -1,1 +1,1 @@
-com.migratorydata.extensions.authorization.DefaultAuthorizationListener
+com.migratorydata.extensions.authorization.AuthorizationListener

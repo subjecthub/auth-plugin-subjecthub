@@ -1,15 +1,17 @@
 package com.migratorydata.extensions.authorization;
 
+import com.migratorydata.extensions.user.Users;
 import org.junit.Test;
 
 public class MySqlAccessTest {
 
     @Test
     public void testDB() throws Exception {
+        Users users = new Users();
         MySqlAccess sql = new MySqlAccess();
-        sql.readKeysFromDataBase("mysql","192.168.10.10:3306", "subjecthub", "homestead", "secret");
+        sql.loadUsers("mysql","192.168.10.10:3306", "subjecthub", "homestead", "secret", users);
 
-        sql.readPublicSubjectsFromDataBase("mysql","192.168.10.10:3306", "subjecthub", "homestead", "secret");
+        System.out.println(users);
     }
 
 }

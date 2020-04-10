@@ -1,4 +1,4 @@
-package com.migratorydata.extensions.authorization;
+package com.migratorydata.extensions.user;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -35,6 +35,17 @@ public class Key {
 
     public void removeKey(String key) {
         keys.remove(key);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder b = new StringBuilder();
+        b.append("[");
+        keys.forEach((k, v) -> {
+            b.append("{").append(k).append("},");
+        });
+        b.append("]");
+        return b.toString();
     }
 
     public enum KeyType {
