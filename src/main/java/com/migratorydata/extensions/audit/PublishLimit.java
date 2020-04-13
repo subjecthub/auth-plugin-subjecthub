@@ -17,7 +17,7 @@ public class PublishLimit implements MigratoryDataMessageListener {
     private long lastUpdateOfPublishLimit = System.currentTimeMillis();
 
     public PublishLimit() {
-        System.out.println("@@@@@    INSTANCE AUDIT.PUBLISH    @@@@");
+        System.out.println("@@@@@@@ AUDIT PUBLISH EXTENSION @@@@@@@");
         authorizationListener = AuthorizationListener.getInstance();
     }
 

@@ -7,18 +7,13 @@ import com.migratorydata.extensions.user.Users;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.HashMap;
-import java.util.Map;
 
 public class MySqlAccess {
 
     private Connection connect = null;
     private Statement statement = null;
-    private PreparedStatement preparedStatement = null;
     private ResultSet resultSet = null;
 
     public void loadUsers(String dbConnector, String dbIp, String dbName, String user, String password, Users users) throws Exception {
@@ -53,7 +48,7 @@ public class MySqlAccess {
                     u = new User(subjecthubId);
                     users.addUser(subjecthubId, u);
                 }
-                u.updateMaxLimits(connectionsLimit, publishLimit);
+                u.updateLimits(connectionsLimit, publishLimit);
             }
 
             resultSet = statement.executeQuery("select * from `applications` INNER JOIN `users` ON users.id=applications.user_id");

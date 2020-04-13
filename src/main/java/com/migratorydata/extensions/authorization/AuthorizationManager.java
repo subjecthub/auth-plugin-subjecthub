@@ -84,7 +84,7 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                             String subjecthubId = counts.getJSONObject(i).getString("shid");
                             int count = counts.getJSONObject(i).getInt("count");
 
-                            users.getUser(subjecthubId).countClients(server, count);
+                            users.getUser(subjecthubId).countConnections(server, count);
                         }
                     }
 
@@ -317,6 +317,17 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
     }
 
     public void handlePublishCheck(MigratoryDataPublishRequest migratoryDataPublishRequest) {
+
+        if (migratoryDataPublishRequest.getSubject().equals(serviceSubject)) {
+            // allow publish on service subject with service.token
+            if (migratoryDataPublishRequest.getClientCredentials().getToken().equals(serviceToken)) {
+                migratoryDataPublishRequest.setAllowed(true);
+            }
+
+            migratoryDataPublishRequest.sendResponse();
+            return;
+        }
+
         offer(() -> {
 
             String subject = migratoryDataPublishRequest.getSubject();
@@ -351,7 +362,7 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
             String subjecthubId = getSubjecthubId(subject);
             if (subjecthubId != null) {
                 Integer count = publishLimit.get(subjecthubId);
-                if (count == null || count.intValue() < 100) {
+                if (count == null || !users.getUser(subjecthubId).isPublishLimitExceeded(count.intValue())) {
                     allowToPublish = true;
                 }
 

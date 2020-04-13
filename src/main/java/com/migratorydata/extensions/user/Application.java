@@ -37,38 +37,9 @@ public class Application {
         }
     }
 
-    public void updateSubject(String oldSubject, SubjectType oldSubjectType, String newSubject, SubjectType subjectType) {
+    public void updateSubject(String oldSubject, SubjectType oldSubjectType, String newSubject, SubjectType newSubjectType) {
         deleteSubject(oldSubject, oldSubjectType);
-        addSubject(newSubject, subjectType);
-    }
-
-    public boolean containsPrivateSubject(String subject) {
-        return privateSubjects.containsKey(subject);
-    }
-
-    public boolean containsPublicSubject(String subject) {
-        return publicSubjects.containsKey(subject);
-    }
-
-    @Override
-    public String toString() {
-        StringBuilder b = new StringBuilder();
-        b.append("\t\t\tPublicSubjects={");
-        publicSubjects.forEach((key, value) -> {
-            b.append(key).append(",");
-        });
-        b.append("}\n");
-
-        b.append("\t\t\tPrivateSubjects={");
-        privateSubjects.forEach((key, value) -> {
-            b.append(key).append(",");
-        });
-        b.append("}\n");
-
-        b.append("\t\t\tKeys={");
-        b.append(key).append(",");
-        b.append("}\n");
-        return b.toString();
+        addSubject(newSubject, newSubjectType);
     }
 
     public Key getKey() {
@@ -91,6 +62,27 @@ public class Application {
 
     public boolean isPrivateSubject(String subject) {
         return privateSubjects.containsKey(subject);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder b = new StringBuilder();
+        b.append("\t\t\tPublicSubjects={");
+        publicSubjects.forEach((key, value) -> {
+            b.append(key).append(",");
+        });
+        b.append("}\n");
+
+        b.append("\t\t\tPrivateSubjects={");
+        privateSubjects.forEach((key, value) -> {
+            b.append(key).append(",");
+        });
+        b.append("}\n");
+
+        b.append("\t\t\tKeys={");
+        b.append(key).append(",");
+        b.append("}\n");
+        return b.toString();
     }
 
     public enum SubjectType {

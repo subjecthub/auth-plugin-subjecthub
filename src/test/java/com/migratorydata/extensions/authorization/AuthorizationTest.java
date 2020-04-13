@@ -52,7 +52,7 @@ public class AuthorizationTest {
             Thread.sleep(200);
             Assert.assertTrue(subscribeRequest.allowed);
 
-            //accessLimit.onDisconnect(new DisconnectEventStub("192.168.1.1" + String.valueOf(countport)));
+            //accessLimit.onDisconnect(new DisconnectEventStub("9gTVgEPnpc:od2fE2Rk4EQIg0cZ", "192.168.1.1" + String.valueOf(countport)));
         }
     }
 

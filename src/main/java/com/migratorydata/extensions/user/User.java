@@ -7,8 +7,8 @@ public class User {
 
     private String subjecthubId;
 
-    private int maxPublishMessagesPerHour = 100;
-    private int maxConnections = 100;
+    private int publishLimitPerHour = 100;
+    private int connectionsLimit = 100;
 
     private int currentConnections = 0;
     private Map<String, Integer> serverCurrentConnections = new HashMap<>();
@@ -17,12 +17,12 @@ public class User {
         this.subjecthubId = subjecthubId;
     }
 
-    public void updateMaxLimits(int maxConnections, int maxPublishMessagesPerHour) {
-        this.maxConnections = maxConnections;
-        this.maxPublishMessagesPerHour = maxPublishMessagesPerHour;
+    public void updateLimits(int connectionsLimit, int publishLimitPerHour) {
+        this.connectionsLimit = connectionsLimit;
+        this.publishLimitPerHour = publishLimitPerHour;
     }
 
-    public void countClients(String serverName, Integer newConnections) {
+    public void countConnections(String serverName, Integer newConnections) {
         Integer currentConnections = serverCurrentConnections.get(serverName);
         if (currentConnections != null) {
             this.currentConnections -= currentConnections;
@@ -42,6 +42,10 @@ public class User {
     }
 
     public boolean isConnectionsLimitExceeded() {
-        return currentConnections >= maxConnections;
+        return currentConnections >= connectionsLimit;
+    }
+
+    public boolean isPublishLimitExceeded(int publishCount) {
+        return publishCount >= publishLimitPerHour;
     }
 }

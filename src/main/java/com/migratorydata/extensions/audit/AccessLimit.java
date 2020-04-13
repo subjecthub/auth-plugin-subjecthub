@@ -9,29 +9,24 @@ public class AccessLimit implements MigratoryDataAccessListener {
 
     private AuthorizationListener authorizationListener;
 
-    private Map<String, String> ipToAppId = new HashMap<>();
-    private Map<String, Integer> appCountClients = new HashMap<>();
-
+    private Map<String, Integer> appCountClients = new HashMap<>(); // appId => connectionsCount
     private long lastUpdateOfAccessLimit = System.currentTimeMillis();
 
     public AccessLimit() {
-        System.out.println("@@@@@INSTANCE AUDIT ACCESS@@@@");
+        System.out.println("@@@@@ AUDIT ACCESS EXTENSION @@@@");
         authorizationListener = AuthorizationListener.getInstance();
     }
 
-    // Audit.Access
     @Override
     public void onConnect(ConnectEvent connectEvent) {
         System.out.println("onConnect = " + connectEvent);
 
-        String clientAddress = connectEvent.getClientAddress();
         String appId = getAppId(connectEvent.getToken());
 
         if (appId == null) {
             return;
         }
 
-        ipToAppId.put(clientAddress, appId);
         Integer count = appCountClients.get(appId);
         if (count == null) {
             appCountClients.put(appId, Integer.valueOf(1));
@@ -46,7 +41,9 @@ public class AccessLimit implements MigratoryDataAccessListener {
     public void onDisconnect(DisconnectEvent disconnectEvent) {
         System.out.println("onDisconnect = " + disconnectEvent);
 
-        String appId = ipToAppId.remove(disconnectEvent.getClientAddress());
+        ConnectEvent castConnectEvent = (ConnectEvent) disconnectEvent;
+
+        String appId = getAppId(castConnectEvent.getToken());
         if (appId == null) {
             return;
         }

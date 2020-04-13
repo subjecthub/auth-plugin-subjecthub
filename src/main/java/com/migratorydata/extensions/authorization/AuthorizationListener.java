@@ -91,9 +91,10 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
     public static AuthorizationListener INSTANCE;
 
 	public AuthorizationListener() {
-	    System.out.println("@@@@@@@ CREATE AUTHORIZATION LISTENER INSTANCE @@@@@@");
+	    System.out.println("@@@@@@@ CREATE AUTHORIZATION EXTENSION LISTENER INSTANCE @@@@@@");
+        logConfig();
 
-	    authorizationManager = new AuthorizationManager(cluster, serviceToken, serviceSubject, dbConnector, dbIp, dbName,
+        authorizationManager = new AuthorizationManager(cluster, serviceToken, serviceSubject, dbConnector, dbIp, dbName,
                 user, password, serverName);
         Thread loop = new Thread(authorizationManager);
         loop.setDaemon(true);
@@ -105,6 +106,10 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
         }
     }
 
+    public AuthorizationListener(AuthorizationManager authorizationManager) {
+	    this.authorizationManager = authorizationManager;
+    }
+
     synchronized public static AuthorizationListener getInstance() {
 	    return INSTANCE;
     }
@@ -112,6 +117,7 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
 	@Override
 	public void onSubscribe(MigratoryDataSubscribeRequest migratoryDataSubscribeRequest) {
 		System.out.println("Got subscribe request=" + migratoryDataSubscribeRequest);
+
 		authorizationManager.handleSubscribeCheck(migratoryDataSubscribeRequest);
 	}
 
@@ -119,16 +125,7 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
 	public void onPublish(MigratoryDataPublishRequest migratoryDataPublishRequest) {
 		System.out.println("Got publish request=" + migratoryDataPublishRequest);
 
-		if (migratoryDataPublishRequest.getSubject().equals(serviceSubject)) {
-		    // allow publish on service subject with service.token
-            if (migratoryDataPublishRequest.getClientCredentials().getToken().equals(serviceToken)) {
-                migratoryDataPublishRequest.setAllowed(true);
-            }
-
-            migratoryDataPublishRequest.sendResponse();
-        } else {
-		    authorizationManager.handlePublishCheck(migratoryDataPublishRequest);
-        }
+        authorizationManager.handlePublishCheck(migratoryDataPublishRequest);
 	}
 
     public void updatePublishLimit(Map<String, Integer> copyPublishLimit) {
@@ -138,4 +135,18 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
     public void updateAccessLimit(Map<String, Integer> copyAppCountClients) {
         authorizationManager.updateAccessLimit(copyAppCountClients);
 	}
+
+    private void logConfig() {
+        System.out.println("@@@@@@@ AUTHORIZATION EXTENSION LISTENER CONFIG:");
+        System.out.println("\t\t\tserverName=" + serverName);
+        System.out.println("\t\t\tservice.token=" + serviceToken);
+        System.out.println("\t\t\tservice.subject=" + serviceSubject);
+        System.out.println("\t\t\tservice.cluster=" + cluster);
+
+        System.out.println("\t\t\tdb.connector=" + dbConnector);
+        System.out.println("\t\t\tdb.ip=" + dbIp);
+        System.out.println("\t\t\tdb.name=" + dbName);
+        System.out.println("\t\t\tdb.user=" + user);
+        System.out.println("\t\t\tdb.password=" + password);
+    }
 }
