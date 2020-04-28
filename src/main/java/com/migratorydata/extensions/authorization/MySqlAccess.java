@@ -37,11 +37,11 @@ public class MySqlAccess {
 
             // Result set get the result of the SQL query
 
-            resultSet = statement.executeQuery("select * from `users`");
+            resultSet = statement.executeQuery("select * from `users` INNER JOIN `limits` ON limits.id=users.limit_id");
             while (resultSet.next()) {
                 String subjecthubId = resultSet.getString("users.subjecthub_id");
-                int connectionsLimit = resultSet.getInt("users.connections_limit");
-                int publishLimit = resultSet.getInt("users.publish_limit");
+                int connectionsLimit = resultSet.getInt("limits.connections_limit");
+                int publishLimit = resultSet.getInt("limits.publish_limit");
 
                 User u = users.getUser(subjecthubId);
                 if (u == null) {
