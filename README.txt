@@ -10,6 +10,8 @@ HOW TO BUILD AND INSTALL AUTHORIZATION EXTENSIONS
 
    ./gradlew clean build
 
+   ./gradlew clean build --exclude-task test
+
 2. Copy the jar file `build/libs/authorization.jar` produced at step 1 above
    to the folder `extensions` of your MigratoryData server
 

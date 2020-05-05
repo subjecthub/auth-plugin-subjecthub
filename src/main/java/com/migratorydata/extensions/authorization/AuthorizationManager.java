@@ -77,6 +77,7 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
 
                     String operation = (String) jsonObject.get("operation");
 
+                    // update from Access extension
                     if ("update_connections".equals(operation)) {
                         String server = jsonObject.getString("server");
                         JSONArray counts = jsonObject.getJSONArray("counts");
@@ -85,6 +86,22 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                             int count = counts.getJSONObject(i).getInt("count");
 
                             users.getUser(subjecthubId).countConnections(server, count);
+                        }
+                    }
+
+                    // update from php PublishJob
+                    if ("update_user".equals(operation)) {
+                        String subjectHubID = (String) jsonObject.get("subjecthub_id");
+                        String opType = (String) jsonObject.get("op_type");
+                        if ("add".equals(opType)) {
+                            Integer connectionsLimit = jsonObject.getInt("connections_limit");
+                            Integer publishLimit = jsonObject.getInt("publish_limit");
+
+                            User user = new User(subjectHubID);
+                            user.updateLimits(connectionsLimit, publishLimit);
+                            users.addUser(subjectHubID, user);
+                        } else if ("delete".equals(opType)) {
+                            users.deleteUser(subjectHubID);
                         }
                     }
 
@@ -101,7 +118,6 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                     }
 
                     if ("update_keys".equals(operation)) {
-                        //String subjectHubID = (String) jsonObject.get("subjecthub_id");
                         String appId = (String) jsonObject.get("app_id");
                         String publishKey = (String) jsonObject.get("publish_key");
                         String subscribeKey = (String) jsonObject.get("subscribe_key");

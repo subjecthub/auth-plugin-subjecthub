@@ -39,6 +39,10 @@ public class Users {
         users.put(subjecthubId, u);
     }
 
+    public void deleteUser(String subjecthubId) {
+        users.remove(subjecthubId);
+    }
+
     public void addPublicSubject(String completeSubject) {
         publicSubjects.put(completeSubject, Application.SubjectType.PUBLIC);
     }

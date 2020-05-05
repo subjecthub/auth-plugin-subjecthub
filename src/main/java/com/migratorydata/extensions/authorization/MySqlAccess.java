@@ -56,10 +56,7 @@ public class MySqlAccess {
                 String appId = resultSet.getString("applications.app_id");
                 String subjecthubId = resultSet.getString("users.subjecthub_id");
 
-                Application app = users.getApplication(appId);
-                if (app == null) {
-                    users.addApplication(subjecthubId, appId);
-                }
+                users.addApplication(subjecthubId, appId);
             }
 
             resultSet = statement.executeQuery("select * from `keys` INNER JOIN `applications` ON applications.id=keys.application_id INNER JOIN users ON users.id=applications.user_id");
