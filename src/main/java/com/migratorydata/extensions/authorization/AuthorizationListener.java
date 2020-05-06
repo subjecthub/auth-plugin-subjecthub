@@ -94,8 +94,14 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
 	    System.out.println("@@@@@@@ CREATE AUTHORIZATION EXTENSION LISTENER INSTANCE @@@@@@");
         logConfig();
 
-        authorizationManager = new AuthorizationManager(cluster, serviceToken, serviceSubject, dbConnector, dbIp, dbName,
-                user, password, serverName);
+        try {
+            authorizationManager = new AuthorizationManager(cluster, serviceToken, serviceSubject, dbConnector, dbIp, dbName,
+                    user, password, serverName);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
+
         Thread loop = new Thread(authorizationManager);
         loop.setDaemon(true);
         loop.setName("SecretKeyManagerLoop");

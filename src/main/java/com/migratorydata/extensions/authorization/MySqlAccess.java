@@ -5,29 +5,44 @@ import com.migratorydata.extensions.user.Key;
 import com.migratorydata.extensions.user.User;
 import com.migratorydata.extensions.user.Users;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.Statement;
+import java.sql.*;
 
 public class MySqlAccess {
 
     private Connection connect = null;
     private Statement statement = null;
+    private PreparedStatement preparedStatement = null;
     private ResultSet resultSet = null;
 
-    public void loadUsers(String dbConnector, String dbIp, String dbName, String user, String password, Users users) throws Exception {
-        try {
-            String jdbcConnector = "jdbc:mysql://";
-            // This will load the MySQL driver, each DB has its own driver
-            if (dbConnector.equals("mysql")) {
-                Class.forName("com.mysql.cj.jdbc.Driver");
-            } else {
-                Class.forName("org.mariadb.jdbc.Driver");
-                jdbcConnector = "jdbc:mariadb://";
-            }
+    private String dbConnector;
+    private String dbIp;
+    private String dbName;
+    private String user;
+    private String password;
 
-            String url = jdbcConnector + dbIp +"/" + dbName;
+    private String url;
+
+    public MySqlAccess(String dbConnector, String dbIp, String dbName, String user, String password) throws Exception {
+        this.dbConnector = dbConnector;
+        this.dbIp = dbIp;
+        this.dbName = dbName;
+        this.user = user;
+        this.password = password;
+
+        String jdbcConnector = "jdbc:mysql://";
+        // This will load the MySQL driver, each DB has its own driver
+        if (dbConnector.equals("mysql")) {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+        } else {
+            Class.forName("org.mariadb.jdbc.Driver");
+            jdbcConnector = "jdbc:mariadb://";
+        }
+
+        this.url = jdbcConnector + dbIp +"/" + dbName;
+    }
+
+    public void loadUsers(Users users) {
+        try {
 
             // Setup the connection with the DB
             connect = DriverManager.getConnection(url, user, password);
@@ -39,13 +54,14 @@ public class MySqlAccess {
 
             resultSet = statement.executeQuery("select * from `users` INNER JOIN `limits` ON limits.id=users.limit_id");
             while (resultSet.next()) {
+                int id = resultSet.getInt("users.id");
                 String subjecthubId = resultSet.getString("users.subjecthub_id");
                 int connectionsLimit = resultSet.getInt("limits.connections_limit");
                 int publishLimit = resultSet.getInt("limits.publish_limit");
 
                 User u = users.getUser(subjecthubId);
                 if (u == null) {
-                    u = new User(subjecthubId);
+                    u = new User(id, subjecthubId);
                     users.addUser(subjecthubId, u);
                 }
                 u.updateLimits(connectionsLimit, publishLimit);
@@ -94,7 +110,53 @@ public class MySqlAccess {
                 app.addSubject(completeSubject, appSubjectType);
             }
         } catch (Exception e) {
-            throw e;
+            e.printStackTrace();
+        } finally {
+            close();
+        }
+    }
+
+    public void saveConnectionsStats(Users users) {
+        try {
+            connect = DriverManager.getConnection(url, user, password);
+
+            for (User user : users.getUsers().values()) {
+                int connections = user.getConnectionsCount();
+                int userId = user.getId();
+
+                preparedStatement = connect.prepareStatement("INSERT INTO connections_stats (user_id, connections) VALUES (?,?)");
+
+                preparedStatement.setInt(1, userId);
+                preparedStatement.setInt(2, connections);
+
+                int row = preparedStatement.executeUpdate();
+                System.out.println("connections stats update=" + row);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            close();
+        }
+    }
+
+    public void saveMessagesStats(Users users) {
+        try {
+            connect = DriverManager.getConnection(url, user, password);
+
+            for (User user : users.getUsers().values()) {
+                int messages = user.getMessagesCount();
+                int userId = user.getId();
+
+                preparedStatement = connect.prepareStatement("INSERT INTO messages_stats (user_id, messages) VALUES (?,?)");
+
+                preparedStatement.setInt(1, userId);
+                preparedStatement.setInt(2, messages);
+
+                int row = preparedStatement.executeUpdate();
+                System.out.println("messages stats update=" + row);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         } finally {
             close();
         }
@@ -109,6 +171,10 @@ public class MySqlAccess {
 
             if (statement != null) {
                 statement.close();
+            }
+
+            if (preparedStatement != null) {
+                preparedStatement.close();
             }
 
             if (connect != null) {

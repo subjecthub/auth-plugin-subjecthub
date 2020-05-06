@@ -2,10 +2,12 @@ package com.migratorydata.extensions.user;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 
 public class User {
 
-    private String subjecthubId;
+    private final int id;
+    private final String subjecthubId;
 
     private int publishLimitPerHour = 100;
     private int connectionsLimit = 100;
@@ -13,7 +15,8 @@ public class User {
     private int currentConnections = 0;
     private Map<String, Integer> serverCurrentConnections = new HashMap<>();
 
-    public User(String subjecthubId) {
+    public User(int id, String subjecthubId) {
+        this.id = id;
         this.subjecthubId = subjecthubId;
     }
 
@@ -37,8 +40,13 @@ public class User {
         return subjecthubId;
     }
 
+    public int getId() {
+        return id;
+    }
+
     public int getConnectionsCount() {
-        return currentConnections;
+        //return currentConnections;
+        return new Random().nextInt(100);
     }
 
     public boolean isConnectionsLimitExceeded() {
@@ -47,5 +55,9 @@ public class User {
 
     public boolean isPublishLimitExceeded(int publishCount) {
         return publishCount >= publishLimitPerHour;
+    }
+
+    public int getMessagesCount() {
+        return new Random().nextInt(100);
     }
 }

@@ -32,12 +32,16 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
     private String serviceToken;
     private String serverName;
 
+    private MySqlAccess mySqlAccess;
+
     public AuthorizationManager(String cluster, String token, String serviceSubject, String dbConnector,
-                                String dbIp, String dbName, String user, String password, String serverName) {
+                                String dbIp, String dbName, String user, String password, String serverName) throws Exception {
 
         this.serviceSubject = serviceSubject;
         this.serviceToken = token;
         this.serverName = serverName;
+
+        this.mySqlAccess = new MySqlAccess(dbConnector, dbIp, dbName, user, password);
 
         client.setLogListener(this, MigratoryDataLogLevel.DEBUG);
         client.setListener(this);
@@ -49,9 +53,8 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
 
         executor.scheduleAtFixedRate(() -> {
             queue.offer(() -> {
-               MySqlAccess mySqlAccess = new MySqlAccess();
                 try {
-                    mySqlAccess.loadUsers(dbConnector, dbIp, dbName, user, password, users);
+                    mySqlAccess.loadUsers(users);
                     System.out.println("@@@@@@@@Load from database:@@@@@@@@@");
                     System.out.println(users);
                 } catch (Exception e) {
@@ -87,6 +90,8 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
 
                             users.getUser(subjecthubId).countConnections(server, count);
                         }
+
+                        mySqlAccess.saveConnectionsStats(users);
                     }
 
                     // update from php PublishJob
@@ -94,10 +99,11 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                         String subjectHubID = (String) jsonObject.get("subjecthub_id");
                         String opType = (String) jsonObject.get("op_type");
                         if ("add".equals(opType)) {
+                            Integer userId = jsonObject.getInt("user_id");
                             Integer connectionsLimit = jsonObject.getInt("connections_limit");
                             Integer publishLimit = jsonObject.getInt("publish_limit");
 
-                            User user = new User(subjectHubID);
+                            User user = new User(userId, subjectHubID);
                             user.updateLimits(connectionsLimit, publishLimit);
                             users.addUser(subjectHubID, user);
                         } else if ("delete".equals(opType)) {
@@ -266,6 +272,8 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
     public void updatePublishLimit(Map<String, Integer> copyPublishLimit) {
         offer(() -> {
             publishLimit = copyPublishLimit;
+
+            mySqlAccess.saveMessagesStats(users);
         });
     }
 
