@@ -56,7 +56,6 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                     String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
                     System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "DATABASE", "@@@@@@@@Load from database:@@@@@@@@@"));
                     System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "DATABASE", "users"));
-                    mySqlAccess.loadUsers(dbConnector, dbIp, dbName, user, password, users);
 
                     Set<String> subscribeSubjects = new HashSet<>();
                     for (KafkaConnector source : users.getSources().values()) {
@@ -66,9 +65,6 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                         subscribeSubjects.add(subscription.getConfigurationSubject());
                     }
                     client.subscribe(new ArrayList<>(subscribeSubjects));
-
-                    System.out.println("@@@@@@@@Load from database:@@@@@@@@@");
-                    System.out.println(users);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
