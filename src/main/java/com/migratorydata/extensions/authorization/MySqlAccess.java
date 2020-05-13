@@ -1,9 +1,6 @@
 package com.migratorydata.extensions.authorization;
 
-import com.migratorydata.extensions.user.Application;
-import com.migratorydata.extensions.user.Key;
-import com.migratorydata.extensions.user.User;
-import com.migratorydata.extensions.user.Users;
+import com.migratorydata.extensions.user.*;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -27,7 +24,7 @@ public class MySqlAccess {
                 jdbcConnector = "jdbc:mariadb://";
             }
 
-            String url = jdbcConnector + dbIp +"/" + dbName;
+            String url = jdbcConnector + dbIp + "/" + dbName;
 
             // Setup the connection with the DB
             connect = DriverManager.getConnection(url, user, password);
@@ -84,15 +81,48 @@ public class MySqlAccess {
                 String completeSubject = "/" + subjecthub_id + "/" + subject;
 
                 Application.SubjectType appSubjectType = Application.SubjectType.PRIVATE;
-                if ("public".equals(subjectType)) {
-                    users.addPublicSubject(completeSubject);
-
-                    appSubjectType = Application.SubjectType.PUBLIC;
+                switch (subjectType) {
+                    case "private":
+                        appSubjectType = Application.SubjectType.PRIVATE;
+                        break;
+                    case "public":
+                        users.addPublicSubject(completeSubject);
+                        appSubjectType = Application.SubjectType.PUBLIC;
+                        break;
+                    case "source":
+                        appSubjectType = Application.SubjectType.SOURCE;
+                        break;
+                    case "subscription":
+                        appSubjectType = Application.SubjectType.SUBSCRIPTION;
+                        break;
                 }
 
-                Application app = users.getApplication (appId);
+                Application app = users.getApplication(appId);
                 app.addSubject(completeSubject, appSubjectType);
             }
+
+            resultSet = statement.executeQuery("select * from sources INNER JOIN `subjects` on sources.subject_id=subjects.id " +
+                    "INNER JOIN `applications` on subjects.application_id=applications.id INNER JOIN `users` on applications.user_id=users.id " +
+                    "WHERE protocol='Kafka'");
+            while (resultSet.next()) {
+                users.addSource(resultSet.getInt("sources.id"),
+                        new KafkaConnector(resultSet.getString("users.subjecthub_id"),
+                                resultSet.getString("sources.configuration"),
+                                resultSet.getString("sources.endpoint"),
+                                resultSet.getString("subjects.subject")));
+            }
+
+            resultSet = statement.executeQuery("select * from subscriptions INNER JOIN `subjects` on subscriptions.subject_id=subjects.id " +
+                    "INNER JOIN `applications` on subjects.application_id=applications.id INNER JOIN `users` on applications.user_id=users.id " +
+                    "WHERE protocol='Kafka'");
+            while (resultSet.next()) {
+                users.addSubscription(resultSet.getInt("subscriptions.id"),
+                        new KafkaConnector(resultSet.getString("users.subjecthub_id"),
+                                resultSet.getString("subscriptions.configuration"),
+                                resultSet.getString("subscriptions.endpoint"),
+                                resultSet.getString("subjects.subject")));
+            }
+
         } catch (Exception e) {
             throw e;
         } finally {

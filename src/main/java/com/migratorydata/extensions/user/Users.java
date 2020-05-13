@@ -10,6 +10,9 @@ public class Users {
 
     private Map<String, Application.SubjectType> publicSubjects = new HashMap<>();
 
+    private Map<Integer, KafkaConnector> sources = new HashMap<>();
+    private Map<Integer, KafkaConnector> subscriptions = new HashMap<>();
+
     public Application getApplication(String appId) {
         return applications.get(appId);
     }
@@ -53,6 +56,58 @@ public class Users {
 
     public boolean isPublicSubject(String subject) {
         return publicSubjects.containsKey(subject);
+    }
+
+    public void addSource(Integer id, KafkaConnector source) {
+        sources.put(id, source);
+    }
+
+    public Map<Integer, KafkaConnector> getSources() {
+        return sources;
+    }
+
+    public KafkaConnector getSourceById(Integer id) {
+        return sources.get(id);
+    }
+
+    public int getSourcesConfigurationSubjectCount(String configurationSubject) {
+        int count = 0;
+        for (KafkaConnector source : sources.values()) {
+            if (source.getConfigurationSubject().equals(configurationSubject)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    public void removeSource(Integer id) {
+        sources.remove(id);
+    }
+
+    public void addSubscription(Integer id, KafkaConnector subscription) {
+        subscriptions.put(id, subscription);
+    }
+
+    public Map<Integer, KafkaConnector> getSubscriptions() {
+        return subscriptions;
+    }
+
+    public KafkaConnector getSubscriptionById(Integer id) {
+        return subscriptions.get(id);
+    }
+
+    public int getSubscriptionsConfigurationSubjectCount(String configurationSubject) {
+        int count = 0;
+        for (KafkaConnector subscription : subscriptions.values()) {
+            if (subscription.getConfigurationSubject().equals(configurationSubject)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    public void removeSubscription(Integer id) {
+        subscriptions.remove(id);
     }
 
     @Override

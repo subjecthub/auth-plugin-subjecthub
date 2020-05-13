@@ -1,6 +1,8 @@
 package com.migratorydata.extensions.user;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class Application {
@@ -8,6 +10,8 @@ public class Application {
     private Key key = new Key();
     private Map<String, SubjectType> publicSubjects = new HashMap<>();
     private Map<String, SubjectType> privateSubjects = new HashMap();
+    private Map<String, SubjectType> sourceSubjects = new HashMap();
+    private Map<String, SubjectType> subscriptionSubjects = new HashMap();
 
     private User user;
 
@@ -23,6 +27,12 @@ public class Application {
             case PRIVATE:
                 privateSubjects.put(subject, subjectType);
                 break;
+            case SOURCE:
+                sourceSubjects.put(subject, subjectType);
+                break;
+            case SUBSCRIPTION:
+                subscriptionSubjects.put(subject, subjectType);
+                break;
         }
     }
 
@@ -33,6 +43,12 @@ public class Application {
                 break;
             case PRIVATE:
                 privateSubjects.remove(subject);
+                break;
+            case SOURCE:
+                sourceSubjects.remove(subject);
+                break;
+            case SUBSCRIPTION:
+                subscriptionSubjects.remove(subject);
                 break;
         }
     }
@@ -57,11 +73,30 @@ public class Application {
         if (privateSubjects.containsKey(subject)) {
             return false;
         }
+        if (sourceSubjects.containsKey(subject)) {
+            return false;
+        }
+        if (subscriptionSubjects.containsKey(subject)) {
+            return false;
+        }
         return true;
     }
 
     public boolean isPrivateSubject(String subject) {
         return privateSubjects.containsKey(subject);
+    }
+
+    public boolean isNonPublicSubject(String subject) {
+        if (privateSubjects.containsKey(subject)) {
+            return true;
+        }
+        if (sourceSubjects.containsKey(subject)) {
+            return true;
+        }
+        if (subscriptionSubjects.containsKey(subject)) {
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -79,6 +114,18 @@ public class Application {
         });
         b.append("}\n");
 
+        b.append("\t\t\tSourceSubjects={");
+        sourceSubjects.forEach((key, value) -> {
+            b.append(key).append(",");
+        });
+        b.append("}\n");
+
+        b.append("\t\t\tSubscriptionSubjects={");
+        subscriptionSubjects.forEach((key, value) -> {
+            b.append(key).append(",");
+        });
+        b.append("}\n");
+
         b.append("\t\t\tKeys={");
         b.append(key).append(",");
         b.append("}\n");
@@ -86,6 +133,6 @@ public class Application {
     }
 
     public enum SubjectType {
-        PUBLIC, PRIVATE
+        PUBLIC, PRIVATE, SOURCE, SUBSCRIPTION
     }
 }
