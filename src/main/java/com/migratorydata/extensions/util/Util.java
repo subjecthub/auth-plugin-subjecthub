@@ -1,5 +1,7 @@
 package com.migratorydata.extensions.util;
 
+import com.migratorydata.extensions.user.Application;
+
 public class Util {
 
     public static String getSubjecthubId(String subject) {
@@ -18,5 +20,19 @@ public class Util {
         }
 
         return null;
+    }
+
+    public static Application.SubjectType getSubjectTypeByString(String type) {
+        switch (type) {
+            case "private":
+                return Application.SubjectType.PRIVATE;
+            case "public":
+                return Application.SubjectType.PUBLIC;
+            case "source":
+                return Application.SubjectType.SOURCE;
+            case "subscription":
+                return Application.SubjectType.SUBSCRIPTION;
+        }
+        return Application.SubjectType.PRIVATE;
     }
 }
