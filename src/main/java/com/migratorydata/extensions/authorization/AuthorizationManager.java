@@ -55,8 +55,9 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
             queue.offer(() -> {
                 try {
                     mySqlAccess.loadUsers(users);
-                    System.out.println("@@@@@@@@Load from database:@@@@@@@@@");
-                    System.out.println(users);
+                    String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
+                    System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "DATABASE", "@@@@@@@@Load from database:@@@@@@@@@"));
+                    System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "DATABASE", "users"));
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -76,7 +77,8 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                 queue.offer(() -> {
                     JSONObject jsonObject = new JSONObject(new String(migratoryDataMessage.getContent()));
 
-                    System.out.println("Received Json: " + jsonObject.toString());
+                    String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
+                    System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "CLIENT_ON_MESSAGE", "Received Json: " + jsonObject.toString()));
 
                     String operation = (String) jsonObject.get("operation");
 
@@ -159,27 +161,9 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                             if (appSubjectType == Application.SubjectType.PUBLIC) {
                                 users.addPublicSubject(subject);
                             }
-                            Application application = users.getApplication(appId);
-                            if (application != null) {
-                                application.addSubject(subject, appSubjectType);
-                            }
-                        } else if ("update".equals(type)) {
-                            String oldSubject = (String) jsonObject.get("old_subject");
-                            String oldSubjectType = (String) jsonObject.get("old_subject_type");
-
-
-                            Application.SubjectType oldAppSubjectType = ("public".equals(oldSubjectType)) ? Application.SubjectType.PUBLIC : Application.SubjectType.PRIVATE;
-                            Application.SubjectType appSubjectType = ("public".equals(subjectType)) ? Application.SubjectType.PUBLIC : Application.SubjectType.PRIVATE;
 
                             Application application = users.getApplication(appId);
-                            if (application != null) {
-                                application.updateSubject(oldSubject, oldAppSubjectType, subject, appSubjectType);
-                            }
-
-                            users.removePublicSubject(oldSubject);
-                            if (appSubjectType == Application.SubjectType.PUBLIC) {
-                                users.addPublicSubject(subject);
-                            }
+                            application.addSubject(subject, appSubjectType);
                         } else if ("delete".equals(type)) {
                             Application.SubjectType appSubjectType = ("public".equals(subjectType)) ? Application.SubjectType.PUBLIC : Application.SubjectType.PRIVATE;
 
@@ -197,7 +181,8 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
 
     @Override
     public void onStatus(String status, String info) {
-        System.out.println("Client status=" + status + ", info=" + info);
+        String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
+        System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "CLIENT", "Client status=" + status + ", info=" + info));
     }
 
     @Override
@@ -263,8 +248,6 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
             updateConnections.put("counts", jsonArray);
             updateConnections.put("server", serverName);
 
-            System.out.println(updateConnections.toString());
-
             client.publish(new MigratoryDataMessage(serviceSubject, updateConnections.toString().getBytes() ));
         });
     }
@@ -312,9 +295,10 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                     }
 
                     // check if connections limit exceeded
-                    System.out.println("Connections count=" + application.getUser().getConnectionsCount());
                     if (application.getUser().isConnectionsLimitExceeded()) {
                         migratoryDataSubscribeRequest.setAllowed(subject, false);
+                        String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
+                        System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "MANAGER_THREAD", "Connections limit reached for subjecthubId=" + application.getUser().getSubjecthubId()));
                         continue;
                     }
 
@@ -388,10 +372,9 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                 Integer count = publishLimit.get(subjecthubId);
                 if (count == null || !users.getUser(subjecthubId).isPublishLimitExceeded(count.intValue())) {
                     allowToPublish = true;
-                }
-
-                if (count != null) {
-                    System.out.println("Publish Limit count=" + count.intValue());
+                } else {
+                    String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
+                    System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "MANAGER_THREAD", "Publish Limit reached for subjecthubId=" + subjecthubId));
                 }
             }
 

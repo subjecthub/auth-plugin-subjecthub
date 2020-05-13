@@ -2,6 +2,8 @@ package com.migratorydata.extensions.audit;
 
 import com.migratorydata.extensions.authorization.AuthorizationListener;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -10,6 +12,8 @@ import java.util.concurrent.TimeUnit;
 
 public class AccessLimit implements MigratoryDataAccessListener {
 
+    private SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SZ");
+
     private AuthorizationListener authorizationListener;
 
     private Map<String, Integer> appCountClients = new HashMap<>(); // appId => connectionsCount
@@ -17,7 +21,7 @@ public class AccessLimit implements MigratoryDataAccessListener {
     private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
     public AccessLimit() {
-        System.out.println("@@@@@ AUDIT ACCESS EXTENSION @@@@");
+        log("@@@@@ AUDIT ACCESS EXTENSION @@@@");
         authorizationListener = AuthorizationListener.getInstance();
 
         executor.scheduleAtFixedRate(() -> {
@@ -28,7 +32,7 @@ public class AccessLimit implements MigratoryDataAccessListener {
     @Override
     public void onConnect(ConnectEvent connectEvent) {
         executor.execute(() -> {
-            System.out.println("onConnect = " + connectEvent);
+            log("onConnect = " + connectEvent);
 
             String appId = getAppId(connectEvent.getToken());
 
@@ -48,7 +52,7 @@ public class AccessLimit implements MigratoryDataAccessListener {
     @Override
     public void onDisconnect(DisconnectEvent disconnectEvent) {
         executor.execute(() -> {
-            System.out.println("onDisconnect = " + disconnectEvent);
+            log("onDisconnect = " + disconnectEvent);
 
             ConnectEvent castConnectEvent = (ConnectEvent) disconnectEvent;
 
@@ -95,5 +99,10 @@ public class AccessLimit implements MigratoryDataAccessListener {
 
     @Override
     public void onUnsubscribe(UnsubscribeEvent unsubscribeEvent) {
+    }
+
+    private void log(String info) {
+        String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
+        System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "ACCESS", info));
     }
 }

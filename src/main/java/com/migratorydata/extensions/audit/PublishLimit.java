@@ -2,6 +2,8 @@ package com.migratorydata.extensions.audit;
 
 import com.migratorydata.extensions.authorization.AuthorizationListener;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -12,6 +14,8 @@ import static com.migratorydata.extensions.util.Util.getSubjecthubId;
 
 public class PublishLimit implements MigratoryDataMessageListener {
 
+    private SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SZ");
+
     private AuthorizationListener authorizationListener;
 
     private final Map<String, Integer> publishLimit = new HashMap<>(); // subjecthubId => PublishCount
@@ -21,7 +25,7 @@ public class PublishLimit implements MigratoryDataMessageListener {
     private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
     public PublishLimit() {
-        System.out.println("@@@@@@@ AUDIT PUBLISH EXTENSION @@@@@@@");
+        log("@@@@@@@ AUDIT PUBLISH EXTENSION @@@@@@@");
         authorizationListener = AuthorizationListener.getInstance();
 
         executor.scheduleAtFixedRate(() -> {
@@ -33,7 +37,7 @@ public class PublishLimit implements MigratoryDataMessageListener {
     @Override
     public void onMessage(MessageEvent messageEvent) {
         executor.execute(() -> {
-            System.out.println("onMessage = " + messageEvent);
+            log ("onMessage = " + messageEvent);
 
             String subjecthubId = getSubjecthubId(messageEvent.getSubject());
             if (subjecthubId == null) {
@@ -63,4 +67,8 @@ public class PublishLimit implements MigratoryDataMessageListener {
         authorizationListener.updatePublishLimit(copyPublishLimit);
     }
 
+    private void log(String info) {
+        String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
+        System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "MESSAGE", info));
+    }
 }

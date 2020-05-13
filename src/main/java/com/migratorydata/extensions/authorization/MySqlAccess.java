@@ -130,7 +130,6 @@ public class MySqlAccess {
                 preparedStatement.setInt(2, connections);
 
                 int row = preparedStatement.executeUpdate();
-                System.out.println("connections stats update=" + row);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -153,7 +152,6 @@ public class MySqlAccess {
                 preparedStatement.setInt(2, messages);
 
                 int row = preparedStatement.executeUpdate();
-                System.out.println("messages stats update=" + row);
             }
         } catch (Exception e) {
             e.printStackTrace();

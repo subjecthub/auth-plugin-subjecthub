@@ -3,6 +3,8 @@ package com.migratorydata.extensions.authorization;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Map;
 import java.util.Properties;
 
@@ -87,6 +89,7 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
     }
 
     private AuthorizationManager authorizationManager;
+    private SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SZ");
 
     public static AuthorizationListener INSTANCE;
 
@@ -122,14 +125,14 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
 
 	@Override
 	public void onSubscribe(MigratoryDataSubscribeRequest migratoryDataSubscribeRequest) {
-		System.out.println("Got subscribe request=" + migratoryDataSubscribeRequest);
+		log("SUBSCRIBE=" + migratoryDataSubscribeRequest);
 
 		authorizationManager.handleSubscribeCheck(migratoryDataSubscribeRequest);
 	}
 
 	@Override
 	public void onPublish(MigratoryDataPublishRequest migratoryDataPublishRequest) {
-		System.out.println("Got publish request=" + migratoryDataPublishRequest);
+        log("PUBLISH=" + migratoryDataPublishRequest);
 
         authorizationManager.handlePublishCheck(migratoryDataPublishRequest);
 	}
@@ -155,4 +158,10 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
         System.out.println("\t\t\tdb.user=" + user);
         System.out.println("\t\t\tdb.password=" + password);
     }
+
+    private void log(String info) {
+        String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
+        System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "AUTHORIZATION", info));
+    }
+
 }
