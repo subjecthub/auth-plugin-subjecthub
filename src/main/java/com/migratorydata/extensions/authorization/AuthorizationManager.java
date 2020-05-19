@@ -253,7 +253,14 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                             JSONObject kafkaToMdLinks = new JSONObject();
                             for (KafkaConnector source : users.getSources().values()) {
                                 if (source.getConfigurationSubject().equals(migratoryDataMessage.getSubject())) {
-                                    kafkaToMdLinks.put(source.getEndpoint(), source.getMigratoryDataSubject());
+                                    JSONArray mdTopics;
+                                    if (kafkaToMdLinks.has(source.getEndpoint())) {
+                                        mdTopics = kafkaToMdLinks.getJSONArray(source.getEndpoint());
+                                    } else {
+                                        mdTopics = new JSONArray();
+                                    }
+                                    mdTopics.put(source.getMigratoryDataSubject());
+                                    kafkaToMdLinks.put(source.getEndpoint(), mdTopics);
                                 }
                             }
                             linkKafkaToMdMultipleRequest.put("kafkaToMdLinks", kafkaToMdLinks);
@@ -267,7 +274,14 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                             JSONObject mdToKafkaLinks = new JSONObject();
                             for (KafkaConnector subscription : users.getSubscriptions().values()) {
                                 if (subscription.getConfigurationSubject().equals(migratoryDataMessage.getSubject())) {
-                                    mdToKafkaLinks.put(subscription.getMigratoryDataSubject(), subscription.getEndpoint());
+                                    JSONArray kafkaTopics;
+                                    if (mdToKafkaLinks.has(subscription.getMigratoryDataSubject())) {
+                                        kafkaTopics = mdToKafkaLinks.getJSONArray(subscription.getMigratoryDataSubject());
+                                    } else {
+                                        kafkaTopics = new JSONArray();
+                                    }
+                                    kafkaTopics.put(subscription.getEndpoint());
+                                    mdToKafkaLinks.put(subscription.getMigratoryDataSubject(), kafkaTopics);
                                 }
                             }
                             linkMdToKafkaMultipleRequest.put("mdToKafkaLinks", mdToKafkaLinks);
