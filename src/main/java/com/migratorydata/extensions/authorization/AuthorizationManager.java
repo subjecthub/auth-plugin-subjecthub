@@ -30,14 +30,19 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
     private String serviceToken;
     private String serverName;
 
+    private String connectorsSubject;
+    private String connectorsToken;
+
     private MySqlAccess mySqlAccess;
 
-    public AuthorizationManager(String cluster, String token, String serviceSubject, String dbConnector,
-                                String dbIp, String dbName, String user, String password, String serverName) throws Exception {
+    public AuthorizationManager(String cluster, String token, String serviceSubject, String connectorsToken, String connectorsSubject,
+                                String dbConnector, String dbIp, String dbName, String user, String password, String serverName) throws Exception {
 
         this.serviceSubject = serviceSubject;
         this.serviceToken = token;
         this.serverName = serverName;
+        this.connectorsSubject = connectorsSubject;
+        this.connectorsToken = connectorsToken;
 
         this.mySqlAccess = new MySqlAccess(dbConnector, dbIp, dbName, user, password);
 
@@ -46,7 +51,7 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
 
         client.setEntitlementToken(token);
         client.setServers(new String[]{cluster});
-        client.subscribe(Arrays.asList(serviceSubject));
+        client.subscribe(Arrays.asList(serviceSubject, connectorsSubject));
         client.connect();
 
         executor.scheduleAtFixedRate(() -> {
@@ -56,15 +61,6 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                     String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
                     System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "DATABASE", "@@@@@@@@Load from database:@@@@@@@@@"));
                     System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "DATABASE", "users"));
-
-                    Set<String> subscribeSubjects = new HashSet<>();
-                    for (KafkaConnector source : users.getSources().values()) {
-                        subscribeSubjects.add(source.getConfigurationSubject());
-                    }
-                    for (KafkaConnector subscription : users.getSubscriptions().values()) {
-                        subscribeSubjects.add(subscription.getConfigurationSubject());
-                    }
-                    client.subscribe(new ArrayList<>(subscribeSubjects));
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -244,7 +240,9 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                                 users.removeSubscription(subscriptionId);
                             }
                         }
-                    } else {
+                    } else if (migratoryDataMessage.getSubject().equals(connectorsSubject)) {
+
+                        String metadataSubject = (String) jsonObject.get("metadataSubject");
 
                         if ("sink-connector-up".equals(operation)) {
                             System.out.println(logMessage);
@@ -252,7 +250,7 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                             linkKafkaToMdMultipleRequest.put("operation", "link-kafka-to-migratory-data-multiple");
                             JSONObject kafkaToMdLinks = new JSONObject();
                             for (KafkaConnector source : users.getSources().values()) {
-                                if (source.getConfigurationSubject().equals(migratoryDataMessage.getSubject())) {
+                                if (source.getConfigurationSubject().equals(metadataSubject)) {
                                     JSONArray mdTopics;
                                     if (kafkaToMdLinks.has(source.getEndpoint())) {
                                         mdTopics = kafkaToMdLinks.getJSONArray(source.getEndpoint());
@@ -264,7 +262,7 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                                 }
                             }
                             linkKafkaToMdMultipleRequest.put("kafkaToMdLinks", kafkaToMdLinks);
-                            client.publish(new MigratoryDataMessage(migratoryDataMessage.getSubject(), linkKafkaToMdMultipleRequest.toString().getBytes()));
+                            client.publish(new MigratoryDataMessage(metadataSubject, linkKafkaToMdMultipleRequest.toString().getBytes()));
                         }
 
                         if ("source-connector-up".equals(operation)) {
@@ -273,7 +271,7 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                             linkMdToKafkaMultipleRequest.put("operation", "link-migratory-data-to-kafka-multiple");
                             JSONObject mdToKafkaLinks = new JSONObject();
                             for (KafkaConnector subscription : users.getSubscriptions().values()) {
-                                if (subscription.getConfigurationSubject().equals(migratoryDataMessage.getSubject())) {
+                                if (subscription.getConfigurationSubject().equals(metadataSubject)) {
                                     JSONArray kafkaTopics;
                                     if (mdToKafkaLinks.has(subscription.getMigratoryDataSubject())) {
                                         kafkaTopics = mdToKafkaLinks.getJSONArray(subscription.getMigratoryDataSubject());
@@ -285,7 +283,7 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                                 }
                             }
                             linkMdToKafkaMultipleRequest.put("mdToKafkaLinks", mdToKafkaLinks);
-                            client.publish(new MigratoryDataMessage(migratoryDataMessage.getSubject(), linkMdToKafkaMultipleRequest.toString().getBytes()));
+                            client.publish(new MigratoryDataMessage(metadataSubject, linkMdToKafkaMultipleRequest.toString().getBytes()));
                         }
                     }
                 });
@@ -380,14 +378,7 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
             List<String> subjects = migratoryDataSubscribeRequest.getSubjects();
             for (String subject : subjects) {
                 // auth service client
-                Set<String> connectorsSubjects = new HashSet<>();
-                for (KafkaConnector source : users.getSources().values()) {
-                    connectorsSubjects.add(source.getConfigurationSubject());
-                }
-                for (KafkaConnector subscription : users.getSubscriptions().values()) {
-                    connectorsSubjects.add(subscription.getConfigurationSubject());
-                }
-                if (subject.equals(serviceSubject) || (connectorsSubjects.contains(subject) && token.equals(serviceToken))) {
+                if (subject.equals(serviceSubject) || subject.equals(connectorsSubject)) {
                     if (token.equals(serviceToken)) {
                         migratoryDataSubscribeRequest.setAllowed(subject, true);
                     } else {
@@ -458,8 +449,18 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
         if (migratoryDataPublishRequest.getSubject().equals(serviceSubject) ||
                 (connectorsSubjects.contains(migratoryDataPublishRequest.getSubject()) &&
                         migratoryDataPublishRequest.getClientCredentials().getToken().equals(serviceToken))) {
-            // allow publish on service subject with service.token
+            // allow publish on service subject with service.token and on source or subscription subject with service.token
             if (migratoryDataPublishRequest.getClientCredentials().getToken().equals(serviceToken)) {
+                migratoryDataPublishRequest.setAllowed(true);
+            }
+
+            migratoryDataPublishRequest.sendResponse();
+            return;
+        }
+
+        if (migratoryDataPublishRequest.getSubject().equals(connectorsSubject)) {
+            // allow publish on connectors subject with connectors.token
+            if (migratoryDataPublishRequest.getClientCredentials().getToken().equals(connectorsToken)) {
                 migratoryDataPublishRequest.setAllowed(true);
             }
 

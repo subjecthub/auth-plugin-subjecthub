@@ -32,6 +32,8 @@ public class Util {
                 return Application.SubjectType.SOURCE;
             case "subscription":
                 return Application.SubjectType.SUBSCRIPTION;
+            case "connector":
+                return Application.SubjectType.CONNECTOR;
         }
         return Application.SubjectType.PRIVATE;
     }

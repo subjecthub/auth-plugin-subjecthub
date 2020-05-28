@@ -111,6 +111,9 @@ public class MySqlAccess {
                     case "subscription":
                         appSubjectType = Application.SubjectType.SUBSCRIPTION;
                         break;
+                    case "connector":
+                        appSubjectType = Application.SubjectType.CONNECTOR;
+                        break;
                 }
 
                 Application app = users.getApplication(appId);
@@ -119,22 +122,24 @@ public class MySqlAccess {
 
             resultSet = statement.executeQuery("select * from sources INNER JOIN `subjects` on sources.subject_id=subjects.id " +
                     "INNER JOIN `applications` on subjects.application_id=applications.id INNER JOIN `users` on applications.user_id=users.id " +
+                    "INNER JOIN `configurations` on sources.configuration_id=configurations.id " +
                     "WHERE protocol='Kafka'");
             while (resultSet.next()) {
                 users.addSource(resultSet.getInt("sources.id"),
                         new KafkaConnector(resultSet.getString("users.subjecthub_id"),
-                                resultSet.getString("sources.configuration"),
+                                resultSet.getString("configurations.metadata"),
                                 resultSet.getString("sources.endpoint"),
                                 resultSet.getString("subjects.subject")));
             }
 
             resultSet = statement.executeQuery("select * from subscriptions INNER JOIN `subjects` on subscriptions.subject_id=subjects.id " +
                     "INNER JOIN `applications` on subjects.application_id=applications.id INNER JOIN `users` on applications.user_id=users.id " +
+                    "INNER JOIN `configurations` on subscriptions.configuration_id=configurations.id " +
                     "WHERE protocol='Kafka'");
             while (resultSet.next()) {
                 users.addSubscription(resultSet.getInt("subscriptions.id"),
                         new KafkaConnector(resultSet.getString("users.subjecthub_id"),
-                                resultSet.getString("subscriptions.configuration"),
+                                resultSet.getString("configurations.metadata"),
                                 resultSet.getString("subscriptions.endpoint"),
                                 resultSet.getString("subjects.subject")));
             }

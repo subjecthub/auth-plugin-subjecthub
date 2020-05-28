@@ -1,8 +1,6 @@
 package com.migratorydata.extensions.user;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class Application {
@@ -12,6 +10,7 @@ public class Application {
     private Map<String, SubjectType> privateSubjects = new HashMap();
     private Map<String, SubjectType> sourceSubjects = new HashMap();
     private Map<String, SubjectType> subscriptionSubjects = new HashMap();
+    private Map<String, SubjectType> connectorSubjects = new HashMap();
 
     private User user;
 
@@ -33,6 +32,9 @@ public class Application {
             case SUBSCRIPTION:
                 subscriptionSubjects.put(subject, subjectType);
                 break;
+            case CONNECTOR:
+                connectorSubjects.put(subject, subjectType);
+                break;
         }
     }
 
@@ -49,6 +51,9 @@ public class Application {
                 break;
             case SUBSCRIPTION:
                 subscriptionSubjects.remove(subject);
+                break;
+            case CONNECTOR:
+                connectorSubjects.remove(subject);
                 break;
         }
     }
@@ -79,6 +84,9 @@ public class Application {
         if (subscriptionSubjects.containsKey(subject)) {
             return false;
         }
+        if (connectorSubjects.containsKey(subject)) {
+            return false;
+        }
         return true;
     }
 
@@ -94,6 +102,9 @@ public class Application {
             return true;
         }
         if (subscriptionSubjects.containsKey(subject)) {
+            return true;
+        }
+        if (connectorSubjects.containsKey(subject)) {
             return true;
         }
         return false;
@@ -126,6 +137,12 @@ public class Application {
         });
         b.append("}\n");
 
+        b.append("\t\t\tConnectorSubjects={");
+        connectorSubjects.forEach((key, value) -> {
+            b.append(key).append(",");
+        });
+        b.append("}\n");
+
         b.append("\t\t\tKeys={");
         b.append(key).append(",");
         b.append("}\n");
@@ -133,6 +150,6 @@ public class Application {
     }
 
     public enum SubjectType {
-        PUBLIC, PRIVATE, SOURCE, SUBSCRIPTION
+        PUBLIC, PRIVATE, SOURCE, SUBSCRIPTION, CONNECTOR
     }
 }

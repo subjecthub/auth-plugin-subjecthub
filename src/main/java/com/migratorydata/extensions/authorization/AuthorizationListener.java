@@ -14,6 +14,8 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
 
     private static String serviceToken = "some-token";
     private static String serviceSubject = "/migratory/secret";
+    private static String connectorsToken = "connectors-publish-token";
+    private static String connectorsSubject = "/connectors/service";
     private static String cluster = "192.168.1.104:8800";
 
     private static String dbConnector = "mysql";
@@ -76,6 +78,8 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
         if (loadConfig) {
             serviceToken = prop.getProperty("service.token");
             serviceSubject = prop.getProperty("service.subject");
+            connectorsToken = prop.getProperty("connectors.token");
+            connectorsSubject = prop.getProperty("connectors.subject");
             cluster = prop.getProperty("service.cluster");
 
             dbConnector = prop.getProperty("db.connector");
@@ -93,13 +97,13 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
 
     public static AuthorizationListener INSTANCE;
 
-	public AuthorizationListener() {
-	    System.out.println("@@@@@@@ CREATE AUTHORIZATION EXTENSION LISTENER INSTANCE @@@@@@");
+    public AuthorizationListener() {
+        System.out.println("@@@@@@@ CREATE AUTHORIZATION EXTENSION LISTENER INSTANCE @@@@@@");
         logConfig();
 
         try {
-            authorizationManager = new AuthorizationManager(cluster, serviceToken, serviceSubject, dbConnector, dbIp, dbName,
-                    user, password, serverName);
+            authorizationManager = new AuthorizationManager(cluster, serviceToken, serviceSubject, connectorsToken, connectorsSubject,
+                    dbConnector, dbIp, dbName, user, password, serverName);
         } catch (Exception e) {
             e.printStackTrace();
             System.exit(1);
@@ -116,34 +120,34 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
     }
 
     public AuthorizationListener(AuthorizationManager authorizationManager) {
-	    this.authorizationManager = authorizationManager;
+        this.authorizationManager = authorizationManager;
     }
 
     synchronized public static AuthorizationListener getInstance() {
-	    return INSTANCE;
+        return INSTANCE;
     }
 
-	@Override
-	public void onSubscribe(MigratoryDataSubscribeRequest migratoryDataSubscribeRequest) {
-		log("SUBSCRIBE=" + migratoryDataSubscribeRequest);
+    @Override
+    public void onSubscribe(MigratoryDataSubscribeRequest migratoryDataSubscribeRequest) {
+        log("SUBSCRIBE=" + migratoryDataSubscribeRequest);
 
-		authorizationManager.handleSubscribeCheck(migratoryDataSubscribeRequest);
-	}
+        authorizationManager.handleSubscribeCheck(migratoryDataSubscribeRequest);
+    }
 
-	@Override
-	public void onPublish(MigratoryDataPublishRequest migratoryDataPublishRequest) {
+    @Override
+    public void onPublish(MigratoryDataPublishRequest migratoryDataPublishRequest) {
         log("PUBLISH=" + migratoryDataPublishRequest);
 
         authorizationManager.handlePublishCheck(migratoryDataPublishRequest);
-	}
+    }
 
     public void updatePublishLimit(Map<String, Integer> copyPublishLimit) {
         authorizationManager.updatePublishLimit(copyPublishLimit);
-	}
+    }
 
     public void updateAccessLimit(Map<String, Integer> copyAppCountClients) {
         authorizationManager.updateAccessLimit(copyAppCountClients);
-	}
+    }
 
     private void logConfig() {
         System.out.println("@@@@@@@ AUTHORIZATION EXTENSION LISTENER CONFIG:");
