@@ -1,5 +1,7 @@
 package com.migratorydata.extensions.authorization;
 
+import com.migratorydata.extensions.presence.MigratoryDataPresenceListener;
+
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -149,6 +151,10 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
         authorizationManager.updateAccessLimit(copyAppCountClients);
     }
 
+    public void onConnectorRequest(MigratoryDataPresenceListener.Message message) {
+        // TODO: new implementation
+    }
+
     private void logConfig() {
         System.out.println("@@@@@@@ AUTHORIZATION EXTENSION LISTENER CONFIG:");
         System.out.println("\t\t\tserverName=" + serverName);
@@ -167,5 +173,4 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
         String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
         System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "AUTHORIZATION", info));
     }
-
 }

@@ -378,65 +378,82 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
             List<String> subjects = migratoryDataSubscribeRequest.getSubjects();
             for (String subject : subjects) {
                 // auth service client
-                if (subject.equals(serviceSubject) || subject.equals(connectorsSubject)) {
-                    if (token.equals(serviceToken)) {
-                        migratoryDataSubscribeRequest.setAllowed(subject, true);
-                    } else {
-                        migratoryDataSubscribeRequest.setAllowed(subject, false);
-                    }
+
+                if (serviceToken.equals(token)) {
+                    migratoryDataSubscribeRequest.setAllowed(subject, true);
+                    continue;
+                }
+
+                if (subject.equals("/__migratorydata__/presence")) {
+                    migratoryDataSubscribeRequest.setAllowed(subject, true);
+                    continue;
+                }
+
+//                if (subject.equals(serviceSubject) || subject.equals(connectorsSubject)) {
+//                    if (token.equals(serviceToken)) {
+//                        migratoryDataSubscribeRequest.setAllowed(subject, true);
+//                    } else {
+//                        migratoryDataSubscribeRequest.setAllowed(subject, false);
+//                    }
+//                } else {
+
+                // check invalid token
+                String[] appIdAndSecret = getAppIdAndSecret(token);
+                if (appIdAndSecret == null) {
+                    migratoryDataSubscribeRequest.setAllowed(subject, false);
+                    continue;
+                }
+
+                // temporary token for website live view, allow subscribe
+                if ("app_id_live".equals(appIdAndSecret[0])) {
+                    migratoryDataSubscribeRequest.setAllowed(subject, true);
+                    continue;
+                }
+
+                // check if application is created
+                Application application = users.getApplication(appIdAndSecret[0]);
+                if (application == null) {
+                    migratoryDataSubscribeRequest.setAllowed(subject, false);
+                    continue;
+                }
+
+                // check if connections limit exceeded
+                if (application.getUser().isConnectionsLimitExceeded()) {
+                    migratoryDataSubscribeRequest.setAllowed(subject, false);
+                    String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
+                    System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "MANAGER_THREAD", "Connections limit reached for subjecthubId=" + application.getUser().getSubjecthubId()));
+                    continue;
+                }
+
+                // check key
+                boolean allowSubscribe = false;
+                if (users.isPublicSubject(subject)) {
+                    allowSubscribe = true;
                 } else {
-
-                    // check invalid token
-                    String[] appIdAndSecret = getAppIdAndSecret(token);
-                    if (appIdAndSecret == null) {
-                        migratoryDataSubscribeRequest.setAllowed(subject, false);
-                        continue;
-                    }
-
-                    // temporary token for website live view, allow subscribe
-                    if ("app_id_live".equals(appIdAndSecret[0])) {
-                        migratoryDataSubscribeRequest.setAllowed(subject, true);
-                        continue;
-                    }
-
-                    // check if application is created
-                    Application application = users.getApplication(appIdAndSecret[0]);
-                    if (application == null) {
-                        migratoryDataSubscribeRequest.setAllowed(subject, false);
-                        continue;
-                    }
-
-                    // check if connections limit exceeded
-                    if (application.getUser().isConnectionsLimitExceeded()) {
-                        migratoryDataSubscribeRequest.setAllowed(subject, false);
-                        String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
-                        System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "MANAGER_THREAD", "Connections limit reached for subjecthubId=" + application.getUser().getSubjecthubId()));
-                        continue;
-                    }
-
-                    // check key
-                    boolean allowSubscribe = false;
-                    if (users.isPublicSubject(subject)) {
-                        allowSubscribe = true;
-                    } else {
-                        // check if non public subject is created
-                        if (application.isNonPublicSubject(subject)) {
-                            Key key = users.getKey(appIdAndSecret[0]);
-                            if (key != null && key.checkSubscribe(appIdAndSecret[1])) {
-                                allowSubscribe = true;
-                            }
+                    // check if non public subject is created
+                    if (application.isNonPublicSubject(subject)) {
+                        Key key = users.getKey(appIdAndSecret[0]);
+                        if (key != null && key.checkSubscribe(appIdAndSecret[1])) {
+                            allowSubscribe = true;
                         }
                     }
-
-                    migratoryDataSubscribeRequest.setAllowed(subject, allowSubscribe);
                 }
+
+                migratoryDataSubscribeRequest.setAllowed(subject, allowSubscribe);
             }
+//            }
 
             migratoryDataSubscribeRequest.sendResponse();
         });
     }
 
     public void handlePublishCheck(MigratoryDataPublishRequest migratoryDataPublishRequest) {
+
+        if (serviceToken.equals(migratoryDataPublishRequest.getClientCredentials().getToken())) {
+            migratoryDataPublishRequest.setAllowed(true);
+            migratoryDataPublishRequest.sendResponse();
+            return;
+        }
 
         Set<String> connectorsSubjects = new HashSet<>();
         for (KafkaConnector source : users.getSources().values()) {
