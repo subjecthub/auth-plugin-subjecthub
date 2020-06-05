@@ -1,6 +1,7 @@
 package com.migratorydata.extensions.authorization;
 
 import com.migratorydata.client.*;
+import com.migratorydata.extensions.presence.MigratoryDataPresenceListener;
 import com.migratorydata.extensions.user.*;
 import com.migratorydata.extensions.util.Util;
 import org.json.JSONArray;
@@ -30,19 +31,14 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
     private String serviceToken;
     private String serverName;
 
-    private String connectorsSubject;
-    private String connectorsToken;
-
     private MySqlAccess mySqlAccess;
 
-    public AuthorizationManager(String cluster, String token, String serviceSubject, String connectorsToken, String connectorsSubject,
-                                String dbConnector, String dbIp, String dbName, String user, String password, String serverName) throws Exception {
+    public AuthorizationManager(String cluster, String token, String serviceSubject, String dbConnector, String dbIp,
+                                String dbName, String user, String password, String serverName) throws Exception {
 
         this.serviceSubject = serviceSubject;
         this.serviceToken = token;
         this.serverName = serverName;
-        this.connectorsSubject = connectorsSubject;
-        this.connectorsToken = connectorsToken;
 
         this.mySqlAccess = new MySqlAccess(dbConnector, dbIp, dbName, user, password);
 
@@ -51,7 +47,7 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
 
         client.setEntitlementToken(token);
         client.setServers(new String[]{cluster});
-        client.subscribe(Arrays.asList(serviceSubject, connectorsSubject));
+        client.subscribe(Arrays.asList(serviceSubject));
         client.connect();
 
         executor.scheduleAtFixedRate(() -> {
@@ -85,209 +81,307 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
 
                     String operation = (String) jsonObject.get("operation");
 
-                    if (migratoryDataMessage.getSubject().equals(serviceSubject)) {
-                        System.out.println(logMessage);
+                    System.out.println(logMessage);
 
-                        // update from Access extension
-                        if ("update_connections".equals(operation)) {
-                            String server = jsonObject.getString("server");
-                            JSONArray counts = jsonObject.getJSONArray("counts");
-                            for (int i = 0; i < counts.length(); i++) {
-                                String subjecthubId = counts.getJSONObject(i).getString("shid");
-                                int count = counts.getJSONObject(i).getInt("count");
+                    // update from Access extension
+                    if ("update_connections".equals(operation)) {
+                        String server = jsonObject.getString("server");
+                        JSONArray counts = jsonObject.getJSONArray("counts");
+                        for (int i = 0; i < counts.length(); i++) {
+                            String subjecthubId = counts.getJSONObject(i).getString("shid");
+                            int count = counts.getJSONObject(i).getInt("count");
 
-                                users.getUser(subjecthubId).countConnections(server, count);
-                            }
-
-                            mySqlAccess.saveConnectionsStats(users);
+                            users.getUser(subjecthubId).countConnections(server, count);
                         }
 
-                        // update from php PublishJob
-                        if ("update_user".equals(operation)) {
+                        mySqlAccess.saveConnectionsStats(users);
+                    }
+
+                    // update from php PublishJob
+                    if ("update_user".equals(operation)) {
+                        String subjectHubID = (String) jsonObject.get("subjecthub_id");
+                        String opType = (String) jsonObject.get("op_type");
+                        if ("add".equals(opType)) {
+                            Integer userId = jsonObject.getInt("user_id");
+                            Integer connectionsLimit = jsonObject.getInt("connections_limit");
+                            Integer publishLimit = jsonObject.getInt("publish_limit");
+
+                            User user = new User(userId, subjectHubID);
+                            user.updateLimits(connectionsLimit, publishLimit);
+                            users.addUser(subjectHubID, user);
+                        } else if ("delete".equals(opType)) {
+                            users.deleteUser(subjectHubID);
+                        }
+                    }
+
+                    if ("update_applications".equals(operation)) {
+                        String subjectHubID = (String) jsonObject.get("subjecthub_id");
+                        String appId = (String) jsonObject.get("app_id");
+
+                        String opType = (String) jsonObject.get("op_type");
+                        if ("add".equals(opType)) {
+                            users.addApplication(subjectHubID, appId);
+                        } else if ("delete".equals(opType)) {
+                            users.deleteApplication(appId);
+                        }
+                    }
+
+                    if ("update_keys".equals(operation)) {
+                        String appId = (String) jsonObject.get("app_id");
+                        String publishKey = (String) jsonObject.get("publish_key");
+                        String subscribeKey = (String) jsonObject.get("subscribe_key");
+                        String pubSubKey = (String) jsonObject.get("pub_sub_key");
+
+                        String type = (String) jsonObject.get("op_type");
+                        if ("add".equals(type)) {
+                            Key key = users.getKey(appId);
+                            if (key != null) {
+                                key.addKey(publishKey, Key.KeyType.PUBLISH);
+                                key.addKey(subscribeKey, Key.KeyType.SUBSCRIBE);
+                                key.addKey(pubSubKey, Key.KeyType.PUB_SUB);
+                            }
+                        } else if ("delete".equals(type)) {
+                            Key key = users.getKey(appId);
+                            if (key != null) {
+                                key.removeKey(publishKey);
+                                key.removeKey(subscribeKey);
+                                key.removeKey(pubSubKey);
+                            }
+                        }
+                    }
+
+                    if ("update_subjects".equals(operation)) {
+                        String subjectHubID = (String) jsonObject.get("subjecthub_id");
+                        String appId = (String) jsonObject.get("app_id");
+                        String subject = (String) jsonObject.get("subject");
+                        String subjectType = (String) jsonObject.get("subject_type");
+
+                        String type = (String) jsonObject.get("op_type");
+                        if ("add".equals(type)) {
+                            Application.SubjectType appSubjectType = Util.getSubjectTypeByString(subjectType);
+                            if (appSubjectType == Application.SubjectType.PUBLIC) {
+                                users.addPublicSubject(subject);
+                            }
+
+                            Application application = users.getApplication(appId);
+                            application.addSubject(subject, appSubjectType);
+                        } else if ("delete".equals(type)) {
+                            Application.SubjectType appSubjectType = Util.getSubjectTypeByString(subjectType);
+
+                            users.removePublicSubject(subject);
+                            Application application = users.getApplication(appId);
+                            if (application != null) {
+                                application.deleteSubject(subject, appSubjectType);
+                            }
+                        }
+                    }
+
+                    if ("update_sources".equals(operation)) {
+                        Integer sourceId = (Integer) jsonObject.get("source_id");
+
+                        String type = (String) jsonObject.get("op_type");
+                        if ("add".equals(type)) {
                             String subjectHubID = (String) jsonObject.get("subjecthub_id");
-                            String opType = (String) jsonObject.get("op_type");
-                            if ("add".equals(opType)) {
-                                Integer userId = jsonObject.getInt("user_id");
-                                Integer connectionsLimit = jsonObject.getInt("connections_limit");
-                                Integer publishLimit = jsonObject.getInt("publish_limit");
-
-                                User user = new User(userId, subjectHubID);
-                                user.updateLimits(connectionsLimit, publishLimit);
-                                users.addUser(subjectHubID, user);
-                            } else if ("delete".equals(opType)) {
-                                users.deleteUser(subjectHubID);
+                            String configuration = (String) jsonObject.get("configuration");
+                            String endpoint = (String) jsonObject.get("endpoint");
+                            String mdSubject = (String) jsonObject.get("md_subject");
+                            String status = (String) jsonObject.get("status");
+                            KafkaConnector source = new KafkaConnector(subjectHubID, configuration, endpoint, mdSubject, status);
+                            users.addSource(sourceId, source);
+                            JSONObject linkObject = new JSONObject();
+                            linkObject.put("operation", "link-kafka-to-migratory-data");
+                            linkObject.put("migratoryDataTopic", source.getMigratoryDataSubject());
+                            linkObject.put("kafkaTopic", source.getEndpoint());
+                            client.publish(new MigratoryDataMessage(source.getConfigurationSubject(), linkObject.toString().getBytes()));
+                        } else if ("delete".equals(type)) {
+                            KafkaConnector sourceToRemove = users.getSourceById(sourceId);
+                            if (users.getSourcesConfigurationSubjectCount(sourceToRemove.getConfigurationSubject()) == 1) {
+                                client.unsubscribe(Collections.singletonList(sourceToRemove.getConfigurationSubject()));
                             }
+                            users.removeSource(sourceId);
+                            JSONObject unlinkObject = new JSONObject();
+                            unlinkObject.put("operation", "unlink-kafka-from-migratory-data");
+                            unlinkObject.put("migratoryDataTopic", sourceToRemove.getMigratoryDataSubject());
+                            unlinkObject.put("kafkaTopic", sourceToRemove.getEndpoint());
+                            client.publish(new MigratoryDataMessage(sourceToRemove.getConfigurationSubject(), unlinkObject.toString().getBytes()));
                         }
+                    }
 
-                        if ("update_applications".equals(operation)) {
+                    if ("update_subscriptions".equals(operation)) {
+                        Integer subscriptionId = (Integer) jsonObject.get("subscription_id");
+
+                        String type = (String) jsonObject.get("op_type");
+                        if ("add".equals(type)) {
                             String subjectHubID = (String) jsonObject.get("subjecthub_id");
-                            String appId = (String) jsonObject.get("app_id");
-
-                            String opType = (String) jsonObject.get("op_type");
-                            if ("add".equals(opType)) {
-                                users.addApplication(subjectHubID, appId);
-                            } else if ("delete".equals(opType)) {
-                                users.deleteApplication(appId);
+                            String configuration = (String) jsonObject.get("configuration");
+                            String endpoint = (String) jsonObject.get("endpoint");
+                            String mdSubject = (String) jsonObject.get("md_subject");
+                            String status = (String) jsonObject.get("status");
+                            KafkaConnector subscription = new KafkaConnector(subjectHubID, configuration, endpoint, mdSubject, status);
+                            users.addSubscription(subscriptionId, subscription);
+                            JSONObject linkObject = new JSONObject();
+                            linkObject.put("operation", "link-migratory-data-to-kafka");
+                            linkObject.put("migratoryDataTopic", subscription.getMigratoryDataSubject());
+                            linkObject.put("kafkaTopic", subscription.getEndpoint());
+                            client.publish(new MigratoryDataMessage(subscription.getConfigurationSubject(), linkObject.toString().getBytes()));
+                        } else if ("delete".equals(type)) {
+                            KafkaConnector subscriptionToRemove = users.getSubscriptionById(subscriptionId);
+                            if (users.getSubscriptionsConfigurationSubjectCount(subscriptionToRemove.getConfigurationSubject()) == 1) {
+                                client.unsubscribe(Collections.singletonList(subscriptionToRemove.getConfigurationSubject()));
                             }
+                            users.removeSubscription(subscriptionId);
+                            JSONObject unlinkObject = new JSONObject();
+                            unlinkObject.put("operation", "unlink-migratory-data-from-kafka");
+                            unlinkObject.put("migratoryDataTopic", subscriptionToRemove.getMigratoryDataSubject());
+                            unlinkObject.put("kafkaTopic", subscriptionToRemove.getEndpoint());
+                            client.publish(new MigratoryDataMessage(subscriptionToRemove.getConfigurationSubject(), unlinkObject.toString().getBytes()));
                         }
+                    }
 
-                        if ("update_keys".equals(operation)) {
-                            String appId = (String) jsonObject.get("app_id");
-                            String publishKey = (String) jsonObject.get("publish_key");
-                            String subscribeKey = (String) jsonObject.get("subscribe_key");
-                            String pubSubKey = (String) jsonObject.get("pub_sub_key");
+                    if ("update_sources_links".equals(operation)) {
+                        String configurationSubject = (String) jsonObject.get("configuration_subject");
+                        sendSourcesLinksByConfiguration(configurationSubject, "CREATED");
+                    }
 
-                            String type = (String) jsonObject.get("op_type");
-                            if ("add".equals(type)) {
-                                Key key = users.getKey(appId);
-                                if (key != null) {
-                                    key.addKey(publishKey, Key.KeyType.PUBLISH);
-                                    key.addKey(subscribeKey, Key.KeyType.SUBSCRIBE);
-                                    key.addKey(pubSubKey, Key.KeyType.PUB_SUB);
-                                }
-                            } else if ("delete".equals(type)) {
-                                Key key = users.getKey(appId);
-                                if (key != null) {
-                                    key.removeKey(publishKey);
-                                    key.removeKey(subscribeKey);
-                                    key.removeKey(pubSubKey);
-                                }
-                            }
-                        }
-
-                        if ("update_subjects".equals(operation)) {
-                            String subjectHubID = (String) jsonObject.get("subjecthub_id");
-                            String appId = (String) jsonObject.get("app_id");
-                            String subject = (String) jsonObject.get("subject");
-                            String subjectType = (String) jsonObject.get("subject_type");
-
-                            String type = (String) jsonObject.get("op_type");
-                            if ("add".equals(type)) {
-                                Application.SubjectType appSubjectType = Util.getSubjectTypeByString(subjectType);
-                                if (appSubjectType == Application.SubjectType.PUBLIC) {
-                                    users.addPublicSubject(subject);
-                                }
-
-                                Application application = users.getApplication(appId);
-                                application.addSubject(subject, appSubjectType);
-                            } else if ("delete".equals(type)) {
-                                Application.SubjectType appSubjectType = Util.getSubjectTypeByString(subjectType);
-
-                                users.removePublicSubject(subject);
-                                Application application = users.getApplication(appId);
-                                if (application != null) {
-                                    application.deleteSubject(subject, appSubjectType);
-                                }
-                            }
-                        }
-
-                        if ("update_sources".equals(operation)) {
-                            Integer sourceId = (Integer) jsonObject.get("source_id");
-
-                            String type = (String) jsonObject.get("op_type");
-                            if ("add".equals(type) || "update".equals(type)) {
-                                String subjectHubID = (String) jsonObject.get("subjecthub_id");
-                                String configuration = (String) jsonObject.get("configuration");
-                                String endpoint = (String) jsonObject.get("endpoint");
-                                String mdSubject = (String) jsonObject.get("md_subject");
-                                KafkaConnector sourceToAdd = new KafkaConnector(subjectHubID, configuration, endpoint, mdSubject);
-                                KafkaConnector previousSource = users.getSourceById(sourceId);
-                                if (previousSource != null) {
-                                    if (!sourceToAdd.getConfigurationSubject().equals(previousSource.getConfigurationSubject())
-                                            && users.getSourcesConfigurationSubjectCount(previousSource.getConfigurationSubject()) == 1) {
-                                        client.unsubscribe(Collections.singletonList(previousSource.getConfiguration()));
-                                    }
-                                }
-                                users.addSource(sourceId, sourceToAdd);
-                                if (users.getSourcesConfigurationSubjectCount(sourceToAdd.getConfigurationSubject()) == 1) {
-                                    client.subscribe(Collections.singletonList(sourceToAdd.getConfigurationSubject()));
-                                }
-                            } else if ("delete".equals(type)) {
-                                KafkaConnector sourceToRemove = users.getSourceById(sourceId);
-                                if (users.getSourcesConfigurationSubjectCount(sourceToRemove.getConfigurationSubject()) == 1) {
-                                    client.unsubscribe(Collections.singletonList(sourceToRemove.getConfigurationSubject()));
-                                }
-                                users.removeSource(sourceId);
-                            }
-                        }
-
-                        if ("update_subscriptions".equals(operation)) {
-                            Integer subscriptionId = (Integer) jsonObject.get("subscription_id");
-
-                            String type = (String) jsonObject.get("op_type");
-                            if ("add".equals(type) || "update".equals(type)) {
-                                String subjectHubID = (String) jsonObject.get("subjecthub_id");
-                                String configuration = (String) jsonObject.get("configuration");
-                                String endpoint = (String) jsonObject.get("endpoint");
-                                String mdSubject = (String) jsonObject.get("md_subject");
-                                KafkaConnector subscriptionToAdd = new KafkaConnector(subjectHubID, configuration, endpoint, mdSubject);
-                                KafkaConnector previousSubscription = users.getSubscriptionById(subscriptionId);
-                                if (previousSubscription != null) {
-                                    if (!subscriptionToAdd.getConfigurationSubject().equals(previousSubscription.getConfigurationSubject())
-                                            && users.getSubscriptionsConfigurationSubjectCount(previousSubscription.getConfigurationSubject()) == 1) {
-                                        client.unsubscribe(Collections.singletonList(previousSubscription.getConfiguration()));
-                                    }
-                                }
-                                users.addSubscription(subscriptionId, subscriptionToAdd);
-                                if (users.getSubscriptionsConfigurationSubjectCount(subscriptionToAdd.getConfigurationSubject()) == 1) {
-                                    client.subscribe(Collections.singletonList(subscriptionToAdd.getConfigurationSubject()));
-                                }
-                            } else if ("delete".equals(type)) {
-                                KafkaConnector subscriptionToRemove = users.getSubscriptionById(subscriptionId);
-                                if (users.getSubscriptionsConfigurationSubjectCount(subscriptionToRemove.getConfigurationSubject()) == 1) {
-                                    client.unsubscribe(Collections.singletonList(subscriptionToRemove.getConfigurationSubject()));
-                                }
-                                users.removeSubscription(subscriptionId);
-                            }
-                        }
-                    } else if (migratoryDataMessage.getSubject().equals(connectorsSubject)) {
-
-                        String metadataSubject = (String) jsonObject.get("metadataSubject");
-
-                        if ("sink-connector-up".equals(operation)) {
-                            System.out.println(logMessage);
-                            JSONObject linkKafkaToMdMultipleRequest = new JSONObject();
-                            linkKafkaToMdMultipleRequest.put("operation", "link-kafka-to-migratory-data-multiple");
-                            JSONObject kafkaToMdLinks = new JSONObject();
-                            for (KafkaConnector source : users.getSources().values()) {
-                                if (source.getConfigurationSubject().equals(metadataSubject)) {
-                                    JSONArray mdTopics;
-                                    if (kafkaToMdLinks.has(source.getEndpoint())) {
-                                        mdTopics = kafkaToMdLinks.getJSONArray(source.getEndpoint());
-                                    } else {
-                                        mdTopics = new JSONArray();
-                                    }
-                                    mdTopics.put(source.getMigratoryDataSubject());
-                                    kafkaToMdLinks.put(source.getEndpoint(), mdTopics);
-                                }
-                            }
-                            linkKafkaToMdMultipleRequest.put("kafkaToMdLinks", kafkaToMdLinks);
-                            client.publish(new MigratoryDataMessage(metadataSubject, linkKafkaToMdMultipleRequest.toString().getBytes()));
-                        }
-
-                        if ("source-connector-up".equals(operation)) {
-                            System.out.println(logMessage);
-                            JSONObject linkMdToKafkaMultipleRequest = new JSONObject();
-                            linkMdToKafkaMultipleRequest.put("operation", "link-migratory-data-to-kafka-multiple");
-                            JSONObject mdToKafkaLinks = new JSONObject();
-                            for (KafkaConnector subscription : users.getSubscriptions().values()) {
-                                if (subscription.getConfigurationSubject().equals(metadataSubject)) {
-                                    JSONArray kafkaTopics;
-                                    if (mdToKafkaLinks.has(subscription.getMigratoryDataSubject())) {
-                                        kafkaTopics = mdToKafkaLinks.getJSONArray(subscription.getMigratoryDataSubject());
-                                    } else {
-                                        kafkaTopics = new JSONArray();
-                                    }
-                                    kafkaTopics.put(subscription.getEndpoint());
-                                    mdToKafkaLinks.put(subscription.getMigratoryDataSubject(), kafkaTopics);
-                                }
-                            }
-                            linkMdToKafkaMultipleRequest.put("mdToKafkaLinks", mdToKafkaLinks);
-                            client.publish(new MigratoryDataMessage(metadataSubject, linkMdToKafkaMultipleRequest.toString().getBytes()));
-                        }
+                    if ("update_subscriptions_links".equals(operation)) {
+                        String configurationSubject = (String) jsonObject.get("configuration_subject");
+                        sendSubscriptionsLinksByConfiguration(configurationSubject, "CREATED");
                     }
                 });
                 break;
+        }
+    }
+
+    private void sendSourcesLinksByConfiguration(String configurationSubject, String notStatus) {
+        JSONObject linkKafkaToMdMultipleRequest = new JSONObject();
+        linkKafkaToMdMultipleRequest.put("operation", "link-kafka-to-migratory-data-multiple");
+        JSONObject kafkaToMdLinks = new JSONObject();
+        for (KafkaConnector source : users.getSources().values()) {
+            if (source.getConfigurationSubject().equals(configurationSubject) && !source.getStatus().equals(notStatus)) {
+                JSONArray mdTopics;
+                if (kafkaToMdLinks.has(source.getEndpoint())) {
+                    mdTopics = kafkaToMdLinks.getJSONArray(source.getEndpoint());
+                } else {
+                    mdTopics = new JSONArray();
+                }
+                mdTopics.put(source.getMigratoryDataSubject());
+                kafkaToMdLinks.put(source.getEndpoint(), mdTopics);
+            }
+        }
+        linkKafkaToMdMultipleRequest.put("kafkaToMdLinks", kafkaToMdLinks);
+        client.publish(new MigratoryDataMessage(configurationSubject, linkKafkaToMdMultipleRequest.toString().getBytes()));
+    }
+
+    private void sendSubscriptionsLinksByConfiguration(String configurationSubject, String notStatus) {
+        JSONObject linkMdToKafkaMultipleRequest = new JSONObject();
+        linkMdToKafkaMultipleRequest.put("operation", "link-migratory-data-to-kafka-multiple");
+        JSONObject mdToKafkaLinks = new JSONObject();
+        for (KafkaConnector subscription : users.getSubscriptions().values()) {
+            if (subscription.getConfigurationSubject().equals(configurationSubject) && !subscription.getStatus().equals(notStatus)) {
+                JSONArray kafkaTopics;
+                if (mdToKafkaLinks.has(subscription.getMigratoryDataSubject())) {
+                    kafkaTopics = mdToKafkaLinks.getJSONArray(subscription.getMigratoryDataSubject());
+                } else {
+                    kafkaTopics = new JSONArray();
+                }
+                kafkaTopics.put(subscription.getEndpoint());
+                mdToKafkaLinks.put(subscription.getMigratoryDataSubject(), kafkaTopics);
+            }
+        }
+        linkMdToKafkaMultipleRequest.put("mdToKafkaLinks", mdToKafkaLinks);
+        client.publish(new MigratoryDataMessage(configurationSubject, linkMdToKafkaMultipleRequest.toString().getBytes()));
+    }
+
+    public void onConnectorMessage(MigratoryDataPresenceListener.Message message) {
+        JSONObject jsonObject = new JSONObject(new String(message.getContent()));
+
+        String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
+        String logMessage = String.format("[%1$s] [%2$s] %3$s", isoDateTime, "CONNECTOR_ON_MESSAGE", "Received Json: " + jsonObject.toString());
+
+        System.out.println(logMessage);
+
+        String operation = (String) jsonObject.get("operation");
+
+        if ("sink-connector-up".equals(operation)) {
+            sendSourcesLinksByConfiguration(message.getSubject(), "");
+        }
+
+        if ("source-connector-up".equals(operation)) {
+            sendSubscriptionsLinksByConfiguration(message.getSubject(), "");
+        }
+
+        if ("link-kafka-to-migratory-data-response".equals(operation)) {
+            String mdTopic = (String) jsonObject.get("migratoryDataTopic");
+            String kafkaTopic = (String) jsonObject.get("kafkaTopic");
+            String status = (String) jsonObject.get("status");
+            if (status.equals("ok") || status.equals("link-already-exists")) {
+                Map<Integer, KafkaConnector> sources = users.getSources();
+                for (Integer key : sources.keySet()) {
+                    KafkaConnector source = sources.get(key);
+                    if (source.getStatus().equals("PENDING") && source.getMigratoryDataSubject().equals(mdTopic) &&
+                            source.getEndpoint().equals(kafkaTopic) && source.getConfigurationSubject().equals(message.getSubject())) {
+                        mySqlAccess.updateSourceStatusById(key, "CREATED");
+                        source.setStatus("CREATED");
+                        break;
+                    }
+                }
+            }
+        }
+
+        if ("link-migratory-data-to-kafka-response".equals(operation)) {
+            String mdTopic = (String) jsonObject.get("migratoryDataTopic");
+            String kafkaTopic = (String) jsonObject.get("kafkaTopic");
+            String status = (String) jsonObject.get("status");
+            if (status.equals("ok") || status.equals("link-already-exists")) {
+                Map<Integer, KafkaConnector> subscriptions = users.getSubscriptions();
+                for (Integer key : subscriptions.keySet()) {
+                    KafkaConnector subscription = subscriptions.get(key);
+                    if (subscription.getStatus().equals("PENDING") && subscription.getMigratoryDataSubject().equals(mdTopic) &&
+                            subscription.getEndpoint().equals(kafkaTopic) && subscription.getConfigurationSubject().equals(message.getSubject())) {
+                        mySqlAccess.updateSubscriptionsStatusById(key, "CREATED");
+                        subscription.setStatus("CREATED");
+                        break;
+                    }
+                }
+            }
+        }
+
+        if ("link-kafka-to-migratory-data-multiple-response".equals(operation)) {
+            JSONObject createdLinks = jsonObject.getJSONObject("createdLinks");
+            for (String kafkaTopic : createdLinks.keySet()) {
+                JSONArray mdTopics = createdLinks.getJSONArray(kafkaTopic);
+                for (Object mdTopic : mdTopics) {
+                    Map<Integer, KafkaConnector> sources = users.getSources();
+                    for (Integer id : sources.keySet()) {
+                        KafkaConnector source = sources.get(id);
+                        if (source.getStatus().equals("PENDING") && source.getMigratoryDataSubject().equals(mdTopic) &&
+                                source.getEndpoint().equals(kafkaTopic) && source.getConfigurationSubject().equals(message.getSubject())) {
+                            mySqlAccess.updateSourceStatusById(id, "CREATED");
+                            source.setStatus("CREATED");
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if ("link-migratory-data-to-kafka-multiple-response".equals(operation)) {
+            JSONObject createdLinks = jsonObject.getJSONObject("createdLinks");
+            for (String mdTopic : createdLinks.keySet()) {
+                JSONArray kafkaTopics = createdLinks.getJSONArray(mdTopic);
+                for (Object kafkaTopic : kafkaTopics) {
+                    Map<Integer, KafkaConnector> subscriptions = users.getSubscriptions();
+                    for (Integer id : subscriptions.keySet()) {
+                        KafkaConnector subscription = subscriptions.get(id);
+                        if (subscription.getStatus().equals("PENDING") && subscription.getMigratoryDataSubject().equals(mdTopic) &&
+                                subscription.getEndpoint().equals(kafkaTopic) && subscription.getConfigurationSubject().equals(message.getSubject())) {
+                            mySqlAccess.updateSubscriptionsStatusById(id, "CREATED");
+                            subscription.setStatus("CREATED");
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -389,14 +483,6 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                     continue;
                 }
 
-//                if (subject.equals(serviceSubject) || subject.equals(connectorsSubject)) {
-//                    if (token.equals(serviceToken)) {
-//                        migratoryDataSubscribeRequest.setAllowed(subject, true);
-//                    } else {
-//                        migratoryDataSubscribeRequest.setAllowed(subject, false);
-//                    }
-//                } else {
-
                 // check invalid token
                 String[] appIdAndSecret = getAppIdAndSecret(token);
                 if (appIdAndSecret == null) {
@@ -441,7 +527,6 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
 
                 migratoryDataSubscribeRequest.setAllowed(subject, allowSubscribe);
             }
-//            }
 
             migratoryDataSubscribeRequest.sendResponse();
         });
@@ -451,36 +536,6 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
 
         if (serviceToken.equals(migratoryDataPublishRequest.getClientCredentials().getToken())) {
             migratoryDataPublishRequest.setAllowed(true);
-            migratoryDataPublishRequest.sendResponse();
-            return;
-        }
-
-        Set<String> connectorsSubjects = new HashSet<>();
-        for (KafkaConnector source : users.getSources().values()) {
-            connectorsSubjects.add(source.getConfigurationSubject());
-        }
-        for (KafkaConnector subscription : users.getSubscriptions().values()) {
-            connectorsSubjects.add(subscription.getConfigurationSubject());
-        }
-
-        if (migratoryDataPublishRequest.getSubject().equals(serviceSubject) ||
-                (connectorsSubjects.contains(migratoryDataPublishRequest.getSubject()) &&
-                        migratoryDataPublishRequest.getClientCredentials().getToken().equals(serviceToken))) {
-            // allow publish on service subject with service.token and on source or subscription subject with service.token
-            if (migratoryDataPublishRequest.getClientCredentials().getToken().equals(serviceToken)) {
-                migratoryDataPublishRequest.setAllowed(true);
-            }
-
-            migratoryDataPublishRequest.sendResponse();
-            return;
-        }
-
-        if (migratoryDataPublishRequest.getSubject().equals(connectorsSubject)) {
-            // allow publish on connectors subject with connectors.token
-            if (migratoryDataPublishRequest.getClientCredentials().getToken().equals(connectorsToken)) {
-                migratoryDataPublishRequest.setAllowed(true);
-            }
-
             migratoryDataPublishRequest.sendResponse();
             return;
         }

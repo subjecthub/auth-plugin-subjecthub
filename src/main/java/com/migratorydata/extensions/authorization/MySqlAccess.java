@@ -35,7 +35,7 @@ public class MySqlAccess {
             jdbcConnector = "jdbc:mariadb://";
         }
 
-        this.url = jdbcConnector + dbIp +"/" + dbName;
+        this.url = jdbcConnector + dbIp + "/" + dbName;
     }
 
     public void loadUsers(Users users) {
@@ -105,12 +105,6 @@ public class MySqlAccess {
                         users.addPublicSubject(completeSubject);
                         appSubjectType = Application.SubjectType.PUBLIC;
                         break;
-                    case "source":
-                        appSubjectType = Application.SubjectType.SOURCE;
-                        break;
-                    case "subscription":
-                        appSubjectType = Application.SubjectType.SUBSCRIPTION;
-                        break;
                     case "connector":
                         appSubjectType = Application.SubjectType.CONNECTOR;
                         break;
@@ -120,30 +114,65 @@ public class MySqlAccess {
                 app.addSubject(completeSubject, appSubjectType);
             }
 
-            resultSet = statement.executeQuery("select * from sources INNER JOIN `subjects` on sources.subject_id=subjects.id " +
-                    "INNER JOIN `applications` on subjects.application_id=applications.id INNER JOIN `users` on applications.user_id=users.id " +
-                    "INNER JOIN `configurations` on sources.configuration_id=configurations.id " +
+            resultSet = statement.executeQuery("select * from sources INNER JOIN `subjects` as sub on sources.subject_id=sub.id " +
+                    "INNER JOIN `configurations` on sources.configuration_id=configurations.id INNER JOIN `users` on configurations.user_id=users.id " +
+                    "INNER JOIN `subjects` as configSub on configurations.subject_id=configSub.id " +
                     "WHERE protocol='Kafka'");
             while (resultSet.next()) {
                 users.addSource(resultSet.getInt("sources.id"),
                         new KafkaConnector(resultSet.getString("users.subjecthub_id"),
-                                resultSet.getString("configurations.metadata"),
+                                resultSet.getString("configSub.subject"),
                                 resultSet.getString("sources.endpoint"),
-                                resultSet.getString("subjects.subject")));
+                                resultSet.getString("sub.subject"),
+                                resultSet.getString("sources.status")));
             }
 
-            resultSet = statement.executeQuery("select * from subscriptions INNER JOIN `subjects` on subscriptions.subject_id=subjects.id " +
-                    "INNER JOIN `applications` on subjects.application_id=applications.id INNER JOIN `users` on applications.user_id=users.id " +
-                    "INNER JOIN `configurations` on subscriptions.configuration_id=configurations.id " +
+            resultSet = statement.executeQuery("select * from subscriptions INNER JOIN `subjects` as sub on subscriptions.subject_id=sub.id " +
+                    "INNER JOIN `configurations` on subscriptions.configuration_id=configurations.id INNER JOIN `users` on configurations.user_id=users.id " +
+                    "INNER JOIN `subjects` as configSub on configurations.subject_id=configSub.id " +
                     "WHERE protocol='Kafka'");
             while (resultSet.next()) {
                 users.addSubscription(resultSet.getInt("subscriptions.id"),
                         new KafkaConnector(resultSet.getString("users.subjecthub_id"),
-                                resultSet.getString("configurations.metadata"),
+                                resultSet.getString("configSub.subject"),
                                 resultSet.getString("subscriptions.endpoint"),
-                                resultSet.getString("subjects.subject")));
+                                resultSet.getString("sub.subject"),
+                                resultSet.getString("subscriptions.status")));
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            close();
+        }
+    }
 
+    public void updateSourceStatusById(Integer id, String status) {
+        try {
+            connect = DriverManager.getConnection(url, user, password);
+
+            preparedStatement = connect.prepareStatement("UPDATE sources SET status = ? WHERE id = ?");
+
+            preparedStatement.setString(1, status);
+            preparedStatement.setInt(2, id);
+
+            preparedStatement.executeUpdate();
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            close();
+        }
+    }
+
+    public void updateSubscriptionsStatusById(Integer id, String status) {
+        try {
+            connect = DriverManager.getConnection(url, user, password);
+
+            preparedStatement = connect.prepareStatement("UPDATE subscriptions SET status = ? WHERE id = ?");
+
+            preparedStatement.setString(1, status);
+            preparedStatement.setInt(2, id);
+
+            preparedStatement.executeUpdate();
         } catch (Exception e) {
             e.printStackTrace();
         } finally {

@@ -11,13 +11,17 @@ public class KafkaConnector {
 
     private String configurationSubject;
 
-    public KafkaConnector(String subjecthubId, String configuration, String endpoint, String migratoryDataSubject) {
+    private String status;
+
+    public KafkaConnector(String subjecthubId, String configuration, String endpoint, String migratoryDataSubject, String status) {
         this.subjecthubId = subjecthubId;
         this.configuration = configuration;
         this.endpoint = endpoint;
         this.migratoryDataSubject = "/" + subjecthubId + "/" + migratoryDataSubject;
 
         configurationSubject = "/" + subjecthubId + "/" + configuration;
+
+        this.status = status;
     }
 
     public String getSubjecthubId() {
@@ -40,31 +44,41 @@ public class KafkaConnector {
         return configurationSubject;
     }
 
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        KafkaConnector source = (KafkaConnector) o;
-        return Objects.equals(subjecthubId, source.subjecthubId) &&
-                Objects.equals(configuration, source.configuration) &&
-                Objects.equals(endpoint, source.endpoint) &&
-                Objects.equals(migratoryDataSubject, source.migratoryDataSubject) &&
-                Objects.equals(configurationSubject, source.configurationSubject);
+        KafkaConnector that = (KafkaConnector) o;
+        return Objects.equals(subjecthubId, that.subjecthubId) &&
+                Objects.equals(configuration, that.configuration) &&
+                Objects.equals(endpoint, that.endpoint) &&
+                Objects.equals(migratoryDataSubject, that.migratoryDataSubject) &&
+                Objects.equals(configurationSubject, that.configurationSubject) &&
+                Objects.equals(status, that.status);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(subjecthubId, configuration, endpoint, migratoryDataSubject, configurationSubject);
+        return Objects.hash(subjecthubId, configuration, endpoint, migratoryDataSubject, configurationSubject, status);
     }
 
     @Override
     public String toString() {
-        return "Source{" +
+        return "KafkaConnector{" +
                 "subjecthubId='" + subjecthubId + '\'' +
                 ", configuration='" + configuration + '\'' +
                 ", endpoint='" + endpoint + '\'' +
                 ", migratoryDataSubject='" + migratoryDataSubject + '\'' +
                 ", configurationSubject='" + configurationSubject + '\'' +
+                ", status='" + status + '\'' +
                 '}';
     }
 }

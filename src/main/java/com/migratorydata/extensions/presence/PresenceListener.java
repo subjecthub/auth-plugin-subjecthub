@@ -19,10 +19,10 @@ public class PresenceListener implements MigratoryDataPresenceListener {
 
     @Override
     public void onClusterMessage(MigratoryDataPresenceListener.Message message) {
-        log("onClusterMessage" + message.toString());
 
         String closure = (String) message.getAdditionalInfo().get("closure");
-        if (closure != null && closure.startsWith("request-")) {
+        if (closure != null && closure.startsWith("connector-request-")) {
+            log("onClusterMessage" + message.toString());
             authorizationListener.onConnectorRequest(message);
         }
     }

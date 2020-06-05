@@ -16,8 +16,6 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
 
     private static String serviceToken = "some-token";
     private static String serviceSubject = "/migratory/secret";
-    private static String connectorsToken = "connectors-publish-token";
-    private static String connectorsSubject = "/connectors/service";
     private static String cluster = "192.168.1.104:8800";
 
     private static String dbConnector = "mysql";
@@ -80,8 +78,6 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
         if (loadConfig) {
             serviceToken = prop.getProperty("service.token");
             serviceSubject = prop.getProperty("service.subject");
-            connectorsToken = prop.getProperty("connectors.token");
-            connectorsSubject = prop.getProperty("connectors.subject");
             cluster = prop.getProperty("service.cluster");
 
             dbConnector = prop.getProperty("db.connector");
@@ -104,7 +100,7 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
         logConfig();
 
         try {
-            authorizationManager = new AuthorizationManager(cluster, serviceToken, serviceSubject, connectorsToken, connectorsSubject,
+            authorizationManager = new AuthorizationManager(cluster, serviceToken, serviceSubject,
                     dbConnector, dbIp, dbName, user, password, serverName);
         } catch (Exception e) {
             e.printStackTrace();
@@ -152,7 +148,7 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
     }
 
     public void onConnectorRequest(MigratoryDataPresenceListener.Message message) {
-        // TODO: new implementation
+        authorizationManager.onConnectorMessage(message);
     }
 
     private void logConfig() {

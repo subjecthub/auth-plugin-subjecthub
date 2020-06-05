@@ -8,8 +8,6 @@ public class Application {
     private Key key = new Key();
     private Map<String, SubjectType> publicSubjects = new HashMap<>();
     private Map<String, SubjectType> privateSubjects = new HashMap();
-    private Map<String, SubjectType> sourceSubjects = new HashMap();
-    private Map<String, SubjectType> subscriptionSubjects = new HashMap();
     private Map<String, SubjectType> connectorSubjects = new HashMap();
 
     private User user;
@@ -26,12 +24,6 @@ public class Application {
             case PRIVATE:
                 privateSubjects.put(subject, subjectType);
                 break;
-            case SOURCE:
-                sourceSubjects.put(subject, subjectType);
-                break;
-            case SUBSCRIPTION:
-                subscriptionSubjects.put(subject, subjectType);
-                break;
             case CONNECTOR:
                 connectorSubjects.put(subject, subjectType);
                 break;
@@ -45,12 +37,6 @@ public class Application {
                 break;
             case PRIVATE:
                 privateSubjects.remove(subject);
-                break;
-            case SOURCE:
-                sourceSubjects.remove(subject);
-                break;
-            case SUBSCRIPTION:
-                subscriptionSubjects.remove(subject);
                 break;
             case CONNECTOR:
                 connectorSubjects.remove(subject);
@@ -78,12 +64,6 @@ public class Application {
         if (privateSubjects.containsKey(subject)) {
             return false;
         }
-        if (sourceSubjects.containsKey(subject)) {
-            return false;
-        }
-        if (subscriptionSubjects.containsKey(subject)) {
-            return false;
-        }
         if (connectorSubjects.containsKey(subject)) {
             return false;
         }
@@ -96,12 +76,6 @@ public class Application {
 
     public boolean isNonPublicSubject(String subject) {
         if (privateSubjects.containsKey(subject)) {
-            return true;
-        }
-        if (sourceSubjects.containsKey(subject)) {
-            return true;
-        }
-        if (subscriptionSubjects.containsKey(subject)) {
             return true;
         }
         if (connectorSubjects.containsKey(subject)) {
@@ -125,18 +99,6 @@ public class Application {
         });
         b.append("}\n");
 
-        b.append("\t\t\tSourceSubjects={");
-        sourceSubjects.forEach((key, value) -> {
-            b.append(key).append(",");
-        });
-        b.append("}\n");
-
-        b.append("\t\t\tSubscriptionSubjects={");
-        subscriptionSubjects.forEach((key, value) -> {
-            b.append(key).append(",");
-        });
-        b.append("}\n");
-
         b.append("\t\t\tConnectorSubjects={");
         connectorSubjects.forEach((key, value) -> {
             b.append(key).append(",");
@@ -150,6 +112,6 @@ public class Application {
     }
 
     public enum SubjectType {
-        PUBLIC, PRIVATE, SOURCE, SUBSCRIPTION, CONNECTOR
+        PUBLIC, PRIVATE, CONNECTOR
     }
 }
