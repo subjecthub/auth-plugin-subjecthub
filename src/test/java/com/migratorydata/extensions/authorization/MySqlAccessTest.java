@@ -4,6 +4,8 @@ import com.migratorydata.extensions.user.User;
 import com.migratorydata.extensions.user.Users;
 import org.junit.Test;
 
+import java.util.Collections;
+
 public class MySqlAccessTest {
 
     @Test
@@ -20,7 +22,7 @@ public class MySqlAccessTest {
         Users users = new Users();
         users.addUser("bestscore", new User(1, "bestscore"));
         MySqlAccess sql = new MySqlAccess("mysql","192.168.10.10:3306", "subjecthub", "homestead", "secret");
-        sql.saveMessagesStats(users);
+        sql.saveMessagesStats(users, Collections.emptyMap());
         sql.saveConnectionsStats(users);
     }
 

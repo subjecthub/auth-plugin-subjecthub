@@ -3,6 +3,7 @@ package com.migratorydata.extensions.authorization;
 import com.migratorydata.extensions.user.*;
 
 import java.sql.*;
+import java.util.Map;
 
 public class MySqlAccess {
 
@@ -202,18 +203,22 @@ public class MySqlAccess {
         }
     }
 
-    public void saveMessagesStats(Users users) {
+    public void saveMessagesStats(Users users, Map<String, Integer> publishLimit) {
         try {
             connect = DriverManager.getConnection(url, user, password);
 
             for (User user : users.getUsers().values()) {
-                int messages = user.getMessagesCount();
                 int userId = user.getId();
+
+                Integer messages = publishLimit.get(user.getSubjecthubId());
+                if (messages == null) {
+                    messages = Integer.valueOf(0);
+                }
 
                 preparedStatement = connect.prepareStatement("INSERT INTO messages_stats (user_id, messages) VALUES (?,?)");
 
                 preparedStatement.setInt(1, userId);
-                preparedStatement.setInt(2, messages);
+                preparedStatement.setInt(2, messages.intValue());
 
                 int row = preparedStatement.executeUpdate();
             }

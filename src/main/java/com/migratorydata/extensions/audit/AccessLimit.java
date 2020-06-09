@@ -25,7 +25,7 @@ public class AccessLimit implements MigratoryDataAccessListener {
         authorizationListener = AuthorizationListener.getInstance();
 
         executor.scheduleAtFixedRate(() -> {
-            checkLastUpdate();
+            update();
         }, 0, 5, TimeUnit.SECONDS);
     }
 
@@ -68,7 +68,7 @@ public class AccessLimit implements MigratoryDataAccessListener {
         });
     }
 
-    private void checkLastUpdate() {
+    private void update() {
         Map<String, Integer> copyAppCountClients = new HashMap<>(appCountClients);
         authorizationListener.updateAccessLimit(copyAppCountClients);
     }

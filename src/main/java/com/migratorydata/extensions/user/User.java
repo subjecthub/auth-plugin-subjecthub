@@ -45,8 +45,8 @@ public class User {
     }
 
     public int getConnectionsCount() {
-        //return currentConnections;
-        return new Random().nextInt(100);
+        return currentConnections;
+        //return new Random().nextInt(100);
     }
 
     public boolean isConnectionsLimitExceeded() {

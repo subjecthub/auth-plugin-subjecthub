@@ -29,7 +29,7 @@ public class PublishLimit implements MigratoryDataMessageListener {
         authorizationListener = AuthorizationListener.getInstance();
 
         executor.scheduleAtFixedRate(() -> {
-            checkLastUpdate();
+            update();
         }, 0, 5, TimeUnit.SECONDS);
     }
 
@@ -53,7 +53,7 @@ public class PublishLimit implements MigratoryDataMessageListener {
         });
     }
 
-    private void checkLastUpdate() {
+    private void update() {
         long currentTime = System.currentTimeMillis();
 
         // every hour reset the publish limit

@@ -42,7 +42,7 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
 
         this.mySqlAccess = new MySqlAccess(dbConnector, dbIp, dbName, user, password);
 
-        client.setLogListener(this, MigratoryDataLogLevel.DEBUG);
+        client.setLogListener(this, MigratoryDataLogLevel.TRACE);
         client.setListener(this);
 
         client.setEntitlementToken(token);
@@ -462,7 +462,7 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
         offer(() -> {
             publishLimit = copyPublishLimit;
 
-            mySqlAccess.saveMessagesStats(users);
+            mySqlAccess.saveMessagesStats(users, publishLimit);
         });
     }
 
