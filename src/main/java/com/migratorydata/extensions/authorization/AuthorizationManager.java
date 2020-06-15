@@ -1,6 +1,7 @@
 package com.migratorydata.extensions.authorization;
 
 import com.migratorydata.client.*;
+import com.migratorydata.extensions.audit.PublishLimit;
 import com.migratorydata.extensions.presence.MigratoryDataPresenceListener;
 import com.migratorydata.extensions.user.*;
 import com.migratorydata.extensions.util.Util;
@@ -21,7 +22,7 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
     private MigratoryDataClient client = new MigratoryDataClient();
     private Queue<Runnable> queue = new ConcurrentLinkedQueue<>();
 
-    private Map<String, Integer> publishLimit = new HashMap<>();
+    private Map<String, PublishLimit.PublishCount> publishLimit = new HashMap<>();
 
     private Users users = new Users();
 
@@ -34,7 +35,7 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
     private MySqlAccess mySqlAccess;
 
     public AuthorizationManager(String cluster, String token, String serviceSubject, String dbConnector, String dbIp,
-                                String dbName, String user, String password, String serverName) throws Exception {
+                                String dbName, String user, String password, String serverName, boolean writeStatsToDB) throws Exception {
 
         this.serviceSubject = serviceSubject;
         this.serviceToken = token;
@@ -55,13 +56,27 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                 try {
                     mySqlAccess.loadUsers(users);
                     String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
-                    System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "DATABASE", "@@@@@@@@Load from database:@@@@@@@@@"));
-                    System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "DATABASE", "users"));
+                    System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "DATABASE", "@@@@@@@@       Load from database     @@@@@@@@@"));
+                    System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "DATABASE", users));
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
             });
         }, 0, 360, TimeUnit.SECONDS);
+
+        if (writeStatsToDB) {
+            executor.scheduleAtFixedRate(() -> {
+                queue.offer(() -> {
+                    try {
+                        String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
+                        System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "DATABASE", "@@@@@@@@       UPDATE STATISTICS       @@@@@@@@@"));
+                        mySqlAccess.updateStats(users.getUsers());
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                });
+            }, 60, 60, TimeUnit.SECONDS);
+        }
     }
 
     public void offer(Runnable r) {
@@ -93,8 +108,6 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
 
                             users.getUser(subjecthubId).countConnections(server, count);
                         }
-
-                        mySqlAccess.saveConnectionsStats(users);
                     }
 
                     // update from php PublishJob
@@ -438,7 +451,6 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
             }
 
             JSONArray jsonArray = new JSONArray();
-            Map<String, User> allUsers = users.getUsers();
             for (Map.Entry<String, Integer> entry : countConnections.entrySet()) {
                 String subjecthubId = entry.getKey();
                 Integer count = entry.getValue();
@@ -458,11 +470,20 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
         });
     }
 
-    public void updatePublishLimit(Map<String, Integer> copyPublishLimit) {
+    public void updatePublishLimit(Map<String, PublishLimit.PublishCount> copyPublishLimit) {
         offer(() -> {
             publishLimit = copyPublishLimit;
 
-            mySqlAccess.saveMessagesStats(users, publishLimit);
+            // subjecthub_id -> numberOfMessages
+            for (Map.Entry<String, PublishLimit.PublishCount> entry : copyPublishLimit.entrySet()) {
+                String subjecthubId = entry.getKey();
+                PublishLimit.PublishCount publishCount = entry.getValue();
+                int newMessages = publishCount.current - publishCount.previous;
+                User user = users.getUser(subjecthubId);
+                if (user != null) {
+                    user.addNewReceivedMessages(newMessages);
+                }
+            }
         });
     }
 
@@ -573,8 +594,8 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
             boolean allowToPublish = false;
             String subjecthubId = getSubjecthubId(subject);
             if (subjecthubId != null) {
-                Integer count = publishLimit.get(subjecthubId);
-                if (count == null || !users.getUser(subjecthubId).isPublishLimitExceeded(count.intValue())) {
+                PublishLimit.PublishCount limit = publishLimit.get(subjecthubId);
+                if (limit == null || !users.getUser(subjecthubId).isPublishLimitExceeded(limit.current)) {
                     allowToPublish = true;
                 } else {
                     String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));

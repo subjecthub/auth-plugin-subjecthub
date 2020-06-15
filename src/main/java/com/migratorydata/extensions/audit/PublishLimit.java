@@ -18,7 +18,7 @@ public class PublishLimit implements MigratoryDataMessageListener {
 
     private AuthorizationListener authorizationListener;
 
-    private final Map<String, Integer> publishLimit = new HashMap<>(); // subjecthubId => PublishCount
+    private final Map<String, PublishCount> publishLimit = new HashMap<>(); // subjecthubId => PublishCount
 
     private long startCountPublishLimit = System.currentTimeMillis();
 
@@ -44,31 +44,56 @@ public class PublishLimit implements MigratoryDataMessageListener {
                 return;
             }
 
-            Integer count = publishLimit.get(subjecthubId);
-            if (count == null) {
-                publishLimit.put(subjecthubId, Integer.valueOf(1));
-            } else {
-                publishLimit.put(subjecthubId, Integer.valueOf(count.intValue() + 1));
+            PublishCount publishCount = publishLimit.get(subjecthubId);
+            if (publishCount == null) {
+                publishCount = new PublishCount();
+                publishLimit.put(subjecthubId, publishCount);
             }
+            publishCount.current++;
         });
     }
 
     private void update() {
         long currentTime = System.currentTimeMillis();
 
+        // update authorization extension
+        Map<String, PublishCount> copyPublishLimit = new HashMap<>();
+        for (Map.Entry<String, PublishCount> entry : publishLimit.entrySet()) {
+            PublishCount currentPublishCount = entry.getValue();
+
+            PublishCount copyCurrentPublishCount = new PublishCount(currentPublishCount);
+            copyPublishLimit.put(entry.getKey(), copyCurrentPublishCount);
+
+            currentPublishCount.previous = currentPublishCount.current;
+        }
+        authorizationListener.updatePublishLimit(copyPublishLimit);
+
         // every hour reset the publish limit
         if (currentTime - startCountPublishLimit >= 3600000) { // one hour
             startCountPublishLimit = currentTime;
             publishLimit.clear();
-        }
 
-        // update authorization extension
-        Map<String, Integer> copyPublishLimit = new HashMap<>(publishLimit);
-        authorizationListener.updatePublishLimit(copyPublishLimit);
+            authorizationListener.updatePublishLimit(new HashMap<>(publishLimit));
+        }
     }
 
     private void log(String info) {
         String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
         System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "MESSAGE", info));
+    }
+
+    public class PublishCount {
+        public int previous;
+        public int current;
+
+        public PublishCount() {
+            this.previous = 0;
+            this.current = 0;
+        }
+
+        public PublishCount(PublishCount c) {
+            this.previous = c.previous;
+            this.current = c.current;
+        }
     }
 }

@@ -2,7 +2,6 @@ package com.migratorydata.extensions.user;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
 
 public class User {
 
@@ -11,6 +10,9 @@ public class User {
 
     private int publishLimitPerHour = 100;
     private int connectionsLimit = 100;
+
+    private int maxConcurrentUsers = 0;
+    private int numberOfNewReceivedMessage = 0;
 
     private int currentConnections = 0;
     private Map<String, Integer> serverCurrentConnections = new HashMap<>();
@@ -34,6 +36,10 @@ public class User {
         this.currentConnections += newConnections;
 
         serverCurrentConnections.put(serverName, Integer.valueOf(newConnections.intValue()));
+
+        if (maxConcurrentUsers < this.currentConnections) {
+            maxConcurrentUsers = this.currentConnections;
+        }
     }
 
     public String getSubjecthubId() {
@@ -44,11 +50,6 @@ public class User {
         return id;
     }
 
-    public int getConnectionsCount() {
-        return currentConnections;
-        //return new Random().nextInt(100);
-    }
-
     public boolean isConnectionsLimitExceeded() {
         return currentConnections >= connectionsLimit;
     }
@@ -57,7 +58,17 @@ public class User {
         return publishCount >= publishLimitPerHour;
     }
 
-    public int getMessagesCount() {
-        return new Random().nextInt(100);
+    public void addNewReceivedMessages(int newMessages) {
+        numberOfNewReceivedMessage += newMessages;
+    }
+
+    public int getMaxConcurrentUsers() {
+        return maxConcurrentUsers;
+    }
+
+    public int getAndResetNumberOfNewReceivedMessage() {
+        int newReceivedMessage = numberOfNewReceivedMessage;
+        numberOfNewReceivedMessage = 0;
+        return newReceivedMessage;
     }
 }

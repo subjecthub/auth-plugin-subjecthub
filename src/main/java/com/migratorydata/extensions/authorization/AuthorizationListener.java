@@ -1,5 +1,6 @@
 package com.migratorydata.extensions.authorization;
 
+import com.migratorydata.extensions.audit.PublishLimit;
 import com.migratorydata.extensions.presence.MigratoryDataPresenceListener;
 
 import java.io.FileInputStream;
@@ -25,6 +26,7 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
     private static String password;
 
     private static String serverName = "server1";
+    private static int nodeIndex = 0;
 
     static {
         boolean loadConfig = false;
@@ -87,6 +89,7 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
             password = prop.getProperty("db.password");
 
             serverName = System.getProperty("com.migratorydata.extensions.authorization.serverName", "server1");
+            nodeIndex = Integer.valueOf(System.getProperty("com.migratorydata.extensions.authorization.index", "0"));
         }
     }
 
@@ -101,7 +104,7 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
 
         try {
             authorizationManager = new AuthorizationManager(cluster, serviceToken, serviceSubject,
-                    dbConnector, dbIp, dbName, user, password, serverName);
+                    dbConnector, dbIp, dbName, user, password, serverName, nodeIndex == 0);
         } catch (Exception e) {
             e.printStackTrace();
             System.exit(1);
@@ -139,7 +142,7 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
         authorizationManager.handlePublishCheck(migratoryDataPublishRequest);
     }
 
-    public void updatePublishLimit(Map<String, Integer> copyPublishLimit) {
+    public void updatePublishLimit(Map<String, PublishLimit.PublishCount> copyPublishLimit) {
         authorizationManager.updatePublishLimit(copyPublishLimit);
     }
 

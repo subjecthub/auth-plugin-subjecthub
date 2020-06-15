@@ -3,12 +3,14 @@ package com.migratorydata.extensions.authorization;
 import com.migratorydata.extensions.user.*;
 
 import java.sql.*;
+import java.util.HashMap;
 import java.util.Map;
 
 public class MySqlAccess {
 
     private Connection connect = null;
     private Statement statement = null;
+    private Statement batchStatement = null;
     private PreparedStatement preparedStatement = null;
     private ResultSet resultSet = null;
 
@@ -181,47 +183,61 @@ public class MySqlAccess {
         }
     }
 
-    public void saveConnectionsStats(Users users) {
+    public void updateStats(Map<String, User> u) {
         try {
+
+            HashMap<String, User> users = new HashMap<>(u);
+
             connect = DriverManager.getConnection(url, user, password);
 
-            for (User user : users.getUsers().values()) {
-                int connections = user.getConnectionsCount();
-                int userId = user.getId();
+            // get current values for today.
+            // Statements allow to issue SQL queries to the database
+            statement = connect.createStatement();
+            batchStatement = connect.createStatement();
 
-                preparedStatement = connect.prepareStatement("INSERT INTO connections_stats (user_id, connections) VALUES (?,?)");
+            // Result set get the result of the SQL query
+            resultSet = statement.executeQuery("select * from `home_stats` INNER JOIN `users` ON users.id=home_stats.user_id WHERE home_stats.created_at >= CURDATE() \n" +
+                    "  AND home_stats.created_at < CURDATE() + INTERVAL 1 DAY");
+            while (resultSet.next()) {
+                int id = resultSet.getInt("home_stats.id");
+                int max_concurrent_users = resultSet.getInt("home_stats.max_concurrent_users");
+                int total_messages = resultSet.getInt("home_stats.total_messages");
+                String subjecthub_id = resultSet.getString("users.subjecthub_id");
+                // update entry
+                User user = users.remove(subjecthub_id);
+                if (user == null) {
+                    continue;
+                }
+                int newMessages = user.getAndResetNumberOfNewReceivedMessage();
+                int concurrentUsers = user.getMaxConcurrentUsers();
 
-                preparedStatement.setInt(1, userId);
-                preparedStatement.setInt(2, connections);
+                boolean updateRow = false;
 
-                int row = preparedStatement.executeUpdate();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            close();
-        }
-    }
-
-    public void saveMessagesStats(Users users, Map<String, Integer> publishLimit) {
-        try {
-            connect = DriverManager.getConnection(url, user, password);
-
-            for (User user : users.getUsers().values()) {
-                int userId = user.getId();
-
-                Integer messages = publishLimit.get(user.getSubjecthubId());
-                if (messages == null) {
-                    messages = Integer.valueOf(0);
+                if (max_concurrent_users < concurrentUsers) {
+                    max_concurrent_users = concurrentUsers;
+                    updateRow = true;
                 }
 
-                preparedStatement = connect.prepareStatement("INSERT INTO messages_stats (user_id, messages) VALUES (?,?)");
+                if (newMessages > 0) {
+                    total_messages += newMessages;
+                    updateRow = true;
+                }
 
-                preparedStatement.setInt(1, userId);
-                preparedStatement.setInt(2, messages.intValue());
-
-                int row = preparedStatement.executeUpdate();
+                if (updateRow) {
+                    batchStatement.addBatch(String.format("UPDATE home_stats SET max_concurrent_users = %d, total_messages = %d, updated_at = now() WHERE id = %d", max_concurrent_users, total_messages, id));
+                }
             }
+
+            for (User user : users.values()) {
+                // insert
+                int newMessages = user.getAndResetNumberOfNewReceivedMessage();
+                int concurrentUsers = user.getMaxConcurrentUsers();
+                int user_id = user.getId();
+
+                batchStatement.addBatch(String.format("INSERT INTO home_stats (user_id, max_concurrent_users, total_messages, created_at) VALUES (%d, %d, %d, now())", user_id, concurrentUsers, newMessages));
+            }
+
+            batchStatement.executeBatch();
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
@@ -242,6 +258,10 @@ public class MySqlAccess {
 
             if (preparedStatement != null) {
                 preparedStatement.close();
+            }
+
+            if (batchStatement != null) {
+                batchStatement.close();
             }
 
             if (connect != null) {

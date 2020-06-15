@@ -121,7 +121,7 @@ public class Users {
 
         b.append("Users={");
         users.forEach((key, value) -> {
-            b.append(key).append("(").append(value.getConnectionsCount()).append(")").append(",");
+            b.append(key).append("(").append(value.getMaxConcurrentUsers()).append(")").append(",");
         });
         b.append("}\n");
 
