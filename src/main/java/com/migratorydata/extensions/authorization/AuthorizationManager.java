@@ -202,8 +202,8 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                             KafkaConnector source = new KafkaConnector(subjectHubID, configuration, endpoint, mdSubject, status);
                             users.addSource(sourceId, source);
                             JSONObject linkObject = new JSONObject();
-                            linkObject.put("operation", "link-kafka-to-migratory-data");
-                            linkObject.put("migratoryDataTopic", source.getMigratoryDataSubject());
+                            linkObject.put("operation", "link-kafka-to-subjecthub");
+                            linkObject.put("subjecthubTopic", source.getMigratoryDataSubject());
                             linkObject.put("kafkaTopic", source.getEndpoint());
                             client.publish(new MigratoryDataMessage(source.getConfigurationSubject(), linkObject.toString().getBytes()));
                         } else if ("delete".equals(type)) {
@@ -213,8 +213,8 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                             }
                             users.removeSource(sourceId);
                             JSONObject unlinkObject = new JSONObject();
-                            unlinkObject.put("operation", "unlink-kafka-from-migratory-data");
-                            unlinkObject.put("migratoryDataTopic", sourceToRemove.getMigratoryDataSubject());
+                            unlinkObject.put("operation", "unlink-kafka-from-subjecthub");
+                            unlinkObject.put("subjecthubTopic", sourceToRemove.getMigratoryDataSubject());
                             unlinkObject.put("kafkaTopic", sourceToRemove.getEndpoint());
                             client.publish(new MigratoryDataMessage(sourceToRemove.getConfigurationSubject(), unlinkObject.toString().getBytes()));
                         }
@@ -233,8 +233,8 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                             KafkaConnector subscription = new KafkaConnector(subjectHubID, configuration, endpoint, mdSubject, status);
                             users.addSubscription(subscriptionId, subscription);
                             JSONObject linkObject = new JSONObject();
-                            linkObject.put("operation", "link-migratory-data-to-kafka");
-                            linkObject.put("migratoryDataTopic", subscription.getMigratoryDataSubject());
+                            linkObject.put("operation", "link-subjecthub-to-kafka");
+                            linkObject.put("subjecthubTopic", subscription.getMigratoryDataSubject());
                             linkObject.put("kafkaTopic", subscription.getEndpoint());
                             client.publish(new MigratoryDataMessage(subscription.getConfigurationSubject(), linkObject.toString().getBytes()));
                         } else if ("delete".equals(type)) {
@@ -244,8 +244,8 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                             }
                             users.removeSubscription(subscriptionId);
                             JSONObject unlinkObject = new JSONObject();
-                            unlinkObject.put("operation", "unlink-migratory-data-from-kafka");
-                            unlinkObject.put("migratoryDataTopic", subscriptionToRemove.getMigratoryDataSubject());
+                            unlinkObject.put("operation", "unlink-subjecthub-from-kafka");
+                            unlinkObject.put("subjecthubTopic", subscriptionToRemove.getMigratoryDataSubject());
                             unlinkObject.put("kafkaTopic", subscriptionToRemove.getEndpoint());
                             client.publish(new MigratoryDataMessage(subscriptionToRemove.getConfigurationSubject(), unlinkObject.toString().getBytes()));
                         }
@@ -267,7 +267,7 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
 
     private void sendSourcesLinksByConfiguration(String configurationSubject, String notStatus) {
         JSONObject linkKafkaToMdMultipleRequest = new JSONObject();
-        linkKafkaToMdMultipleRequest.put("operation", "link-kafka-to-migratory-data-multiple");
+        linkKafkaToMdMultipleRequest.put("operation", "link-kafka-to-subjecthub-multiple");
         JSONObject kafkaToMdLinks = new JSONObject();
         for (KafkaConnector source : users.getSources().values()) {
             if (source.getConfigurationSubject().equals(configurationSubject) && !source.getStatus().equals(notStatus)) {
@@ -281,13 +281,13 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                 kafkaToMdLinks.put(source.getEndpoint(), mdTopics);
             }
         }
-        linkKafkaToMdMultipleRequest.put("kafkaToMdLinks", kafkaToMdLinks);
+        linkKafkaToMdMultipleRequest.put("kafkaToSubjecthubLinks", kafkaToMdLinks);
         client.publish(new MigratoryDataMessage(configurationSubject, linkKafkaToMdMultipleRequest.toString().getBytes()));
     }
 
     private void sendSubscriptionsLinksByConfiguration(String configurationSubject, String notStatus) {
         JSONObject linkMdToKafkaMultipleRequest = new JSONObject();
-        linkMdToKafkaMultipleRequest.put("operation", "link-migratory-data-to-kafka-multiple");
+        linkMdToKafkaMultipleRequest.put("operation", "link-subjecthub-to-kafka-multiple");
         JSONObject mdToKafkaLinks = new JSONObject();
         for (KafkaConnector subscription : users.getSubscriptions().values()) {
             if (subscription.getConfigurationSubject().equals(configurationSubject) && !subscription.getStatus().equals(notStatus)) {
@@ -301,7 +301,7 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
                 mdToKafkaLinks.put(subscription.getMigratoryDataSubject(), kafkaTopics);
             }
         }
-        linkMdToKafkaMultipleRequest.put("mdToKafkaLinks", mdToKafkaLinks);
+        linkMdToKafkaMultipleRequest.put("subjecthubToKafkaLinks", mdToKafkaLinks);
         client.publish(new MigratoryDataMessage(configurationSubject, linkMdToKafkaMultipleRequest.toString().getBytes()));
     }
 
@@ -323,8 +323,8 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
             sendSubscriptionsLinksByConfiguration(message.getSubject(), "");
         }
 
-        if ("link-kafka-to-migratory-data-response".equals(operation)) {
-            String mdTopic = (String) jsonObject.get("migratoryDataTopic");
+        if ("link-kafka-to-subjecthub-response".equals(operation)) {
+            String mdTopic = (String) jsonObject.get("subjecthubTopic");
             String kafkaTopic = (String) jsonObject.get("kafkaTopic");
             String status = (String) jsonObject.get("status");
             if (status.equals("ok") || status.equals("link-already-exists")) {
@@ -341,8 +341,8 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
             }
         }
 
-        if ("link-migratory-data-to-kafka-response".equals(operation)) {
-            String mdTopic = (String) jsonObject.get("migratoryDataTopic");
+        if ("link-subjecthub-to-kafka-response".equals(operation)) {
+            String mdTopic = (String) jsonObject.get("subjecthubTopic");
             String kafkaTopic = (String) jsonObject.get("kafkaTopic");
             String status = (String) jsonObject.get("status");
             if (status.equals("ok") || status.equals("link-already-exists")) {
@@ -359,7 +359,7 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
             }
         }
 
-        if ("link-kafka-to-migratory-data-multiple-response".equals(operation)) {
+        if ("link-kafka-to-subjecthub-multiple-response".equals(operation)) {
             JSONObject createdLinks = jsonObject.getJSONObject("createdLinks");
             for (String kafkaTopic : createdLinks.keySet()) {
                 JSONArray mdTopics = createdLinks.getJSONArray(kafkaTopic);
@@ -378,7 +378,7 @@ public class AuthorizationManager implements MigratoryDataListener, MigratoryDat
             }
         }
 
-        if ("link-migratory-data-to-kafka-multiple-response".equals(operation)) {
+        if ("link-subjecthub-to-kafka-multiple-response".equals(operation)) {
             JSONObject createdLinks = jsonObject.getJSONObject("createdLinks");
             for (String mdTopic : createdLinks.keySet()) {
                 JSONArray kafkaTopics = createdLinks.getJSONArray(mdTopic);
