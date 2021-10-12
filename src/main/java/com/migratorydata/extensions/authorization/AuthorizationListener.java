@@ -1,29 +1,18 @@
 package com.migratorydata.extensions.authorization;
 
-import com.migratorydata.extensions.audit.PublishLimit;
-import com.migratorydata.extensions.presence.MigratoryDataPresenceListener;
-
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.Map;
 import java.util.Properties;
 
 public class AuthorizationListener implements MigratoryDataEntitlementListener {
 
     private static final String authFileName = "authorization.conf";
 
-    private static String serviceToken = "some-token";
-    private static String serviceSubject = "/migratory/secret";
-    private static String cluster = "192.168.1.104:8800";
-
-    private static String dbConnector = "mysql";
-    private static String dbIp;
-    private static String dbName;
-    private static String user;
-    private static String password;
+    private static String kafkaCluster = "localhost:9092";
+    private static String topics = "entitlement";
 
     private static String serverName = "server1";
     private static int nodeIndex = 0;
@@ -78,15 +67,8 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
         }
 
         if (loadConfig) {
-            serviceToken = prop.getProperty("service.token");
-            serviceSubject = prop.getProperty("service.subject");
-            cluster = prop.getProperty("service.cluster");
-
-            dbConnector = prop.getProperty("db.connector");
-            dbIp = prop.getProperty("db.ip");
-            dbName = prop.getProperty("db.name");
-            user = prop.getProperty("db.user");
-            password = prop.getProperty("db.password");
+            kafkaCluster = prop.getProperty("bootstrap.servers");
+            topics = prop.getProperty("topics");
 
             serverName = System.getProperty("com.migratorydata.extensions.authorization.serverName", "server1");
             nodeIndex = Integer.valueOf(System.getProperty("com.migratorydata.extensions.authorization.index", "0"));
@@ -94,6 +76,7 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
     }
 
     private AuthorizationManager authorizationManager;
+    private Consumer consumer;
     private SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SZ");
 
     public static AuthorizationListener INSTANCE;
@@ -103,8 +86,7 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
         logConfig();
 
         try {
-            authorizationManager = new AuthorizationManager(cluster, serviceToken, serviceSubject,
-                    dbConnector, dbIp, dbName, user, password, serverName, nodeIndex == 0);
+            authorizationManager = new AuthorizationManager();
         } catch (Exception e) {
             e.printStackTrace();
             System.exit(1);
@@ -114,6 +96,9 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
         loop.setDaemon(true);
         loop.setName("SecretKeyManagerLoop");
         loop.start();
+
+        consumer = new Consumer(kafkaCluster, topics, authorizationManager);
+        consumer.begin();
 
         synchronized (AuthorizationListener.class) {
             INSTANCE = this;
@@ -142,30 +127,22 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
         authorizationManager.handlePublishCheck(migratoryDataPublishRequest);
     }
 
-    public void updatePublishLimit(Map<String, PublishLimit.PublishCount> copyPublishLimit) {
-        authorizationManager.updatePublishLimit(copyPublishLimit);
-    }
+//    public void updatePublishLimit(Map<String, PublishLimit.PublishCount> copyPublishLimit) {
+//        authorizationManager.updatePublishLimit(copyPublishLimit);
+//    }
+//
+//    public void updateAccessLimit(Map<String, Integer> copyAppCountClients) {
+//        authorizationManager.updateAccessLimit(copyAppCountClients);
+//    }
 
-    public void updateAccessLimit(Map<String, Integer> copyAppCountClients) {
-        authorizationManager.updateAccessLimit(copyAppCountClients);
-    }
-
-    public void onConnectorRequest(MigratoryDataPresenceListener.Message message) {
-        authorizationManager.onConnectorMessage(message);
-    }
+//    public void onConnectorRequest(MigratoryDataPresenceListener.Message message) {
+//        authorizationManager.onConnectorMessage(message);
+//    }
 
     private void logConfig() {
         System.out.println("@@@@@@@ AUTHORIZATION EXTENSION LISTENER CONFIG:");
-        System.out.println("\t\t\tserverName=" + serverName);
-        System.out.println("\t\t\tservice.token=" + serviceToken);
-        System.out.println("\t\t\tservice.subject=" + serviceSubject);
-        System.out.println("\t\t\tservice.cluster=" + cluster);
-
-        System.out.println("\t\t\tdb.connector=" + dbConnector);
-        System.out.println("\t\t\tdb.ip=" + dbIp);
-        System.out.println("\t\t\tdb.name=" + dbName);
-        System.out.println("\t\t\tdb.user=" + user);
-        System.out.println("\t\t\tdb.password=" + password);
+        System.out.println("\t\t\tkafkaCluster=" + serverName);
+        System.out.println("\t\t\ttopics=" + topics);
     }
 
     private void log(String info) {

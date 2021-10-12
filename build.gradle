@@ -19,13 +19,17 @@ jar {
 // In this section you declare the dependencies for your production and test code
 dependencies {
     compile files('libs/migratorydata-extension-authorization.jar')
-    compile files('libs/migratorydata-extension-audit.jar')
-    compile files('libs/migratorydata-extension-presence.jar')
+//    compile files('libs/migratorydata-extension-audit.jar')
+//    compile files('libs/migratorydata-extension-presence.jar')
 
-    compile files('libs/migratorydata-client-java.jar')
-    compile files('libs/mysql-connector-java-8.0.19.jar')
-    compile files('libs/mariadb-java-client-2.6.0.jar')
     compile group: 'org.json', name: 'json', version: '20190722'
+
+    // https://mvnrepository.com/artifact/org.apache.kafka/kafka-clients
+    implementation group: 'org.apache.kafka', name: 'kafka-clients', version: '2.6.0'
+    // https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind
+    implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.10.2'
+    implementation group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
+    implementation group: 'org.slf4j', name: 'slf4j-simple', version: '1.7.25'
 
     testCompile group: 'junit', name: 'junit', version: '4.12'
 }

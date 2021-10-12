@@ -1,5 +1,7 @@
 package com.migratorydata.extensions.user;
 
+import com.migratorydata.extensions.util.Util;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -7,7 +9,8 @@ public class Key {
 
     private Map<String, KeyType> keys = new HashMap<>();
 
-    public void addKey(String key, KeyType type) {
+    public void addKey(String key) {
+        KeyType type = Util.getKeyType(key);
         keys.put(key, type);
     }
 
@@ -33,7 +36,7 @@ public class Key {
         return true;
     }
 
-    public void removeKey(String key) {
+    public void deleteKey(String key) {
         keys.remove(key);
     }
 

@@ -1,36 +1,52 @@
 package com.migratorydata.extensions.util;
 
-import com.migratorydata.extensions.user.Application;
+import com.migratorydata.extensions.user.Key;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class Util {
 
-    public static String getSubjecthubId(String subject) {
+    public static String getTopicFromSubject(String subject) {
         int index = subject.indexOf("/", 1);
         if (index == -1) {
-            return null;
+            return subject.substring(1);
         }
         return subject.substring(1, index);
     }
 
-    public static String[] getAppIdAndSecret(String token) {
+    // topic:randomId:access
+    public static String[] getKeyElements(String token) {
         String[] elements = token.split(":");
 
-        if (elements.length == 2) {
+        if (elements.length == 3) {
             return elements;
         }
 
         return null;
     }
 
-    public static Application.SubjectType getSubjectTypeByString(String type) {
-        switch (type) {
-            case "private":
-                return Application.SubjectType.PRIVATE;
-            case "public":
-                return Application.SubjectType.PUBLIC;
-            case "connector":
-                return Application.SubjectType.CONNECTOR;
+    public static Key.KeyType getKeyType(String key) {
+        String[] keyElements = getKeyElements(key);
+        if (keyElements.length < 3) {
+            throw new RuntimeException("invalid key");
         }
-        return Application.SubjectType.PRIVATE;
+        if (keyElements[2].equals("s.p")) {
+            return Key.KeyType.PUB_SUB;
+        } else if (keyElements[2].equals("s")) {
+            return Key.KeyType.SUBSCRIBE;
+        } else if (keyElements[2].equals("p")) {
+            return Key.KeyType.PUBLISH;
+        }
+        throw new RuntimeException("invalid key");
+    }
+
+    public static List<String> getKafkaTopics(String topicsList) {
+        List<String> topics = new ArrayList<>();
+        String[] topicsSplit = topicsList.split(",");
+        for (String topic : topicsSplit) {
+            topics.add(topic.trim());
+        }
+        return topics;
     }
 }
