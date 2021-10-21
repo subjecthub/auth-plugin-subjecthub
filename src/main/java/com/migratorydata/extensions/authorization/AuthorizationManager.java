@@ -5,6 +5,9 @@ import com.migratorydata.extensions.util.Util;
 import org.json.JSONObject;
 
 import java.text.SimpleDateFormat;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -16,9 +19,23 @@ public class AuthorizationManager implements Runnable {
 
     private Queue<Runnable> queue = new ConcurrentLinkedQueue<>();
 
-//    private Map<String, PublishLimit.PublishCount> publishLimit = new HashMap<>();
-
     private Map<String, Topic> topics = new HashMap<>();
+
+    private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+
+    public AuthorizationManager() {
+        LocalDateTime start = LocalDateTime.now();
+        LocalDateTime end = start.plusHours(1).truncatedTo(ChronoUnit.HOURS);
+
+        Duration duration = Duration.between(start, end);
+        long nextHour = duration.getSeconds();
+
+        executor.scheduleAtFixedRate(() -> {
+            for (Map.Entry<String, Topic> entry : topics.entrySet()) {
+                entry.getValue().resetMessagesNumber();
+            }
+        }, nextHour, 3600, TimeUnit.SECONDS);
+    }
 
     public void offer(Runnable r) {
         queue.offer(r);
@@ -36,7 +53,7 @@ public class AuthorizationManager implements Runnable {
             String topic = jsonMessage.getString("topic");
 
             if (topics.containsKey(topic) == false) {
-                topics.put(topic, new Topic());
+                topics.put(topic, new Topic(topic));
             }
 
             if ("add_key".equals(operation)) {
@@ -73,63 +90,27 @@ public class AuthorizationManager implements Runnable {
         }
     }
 
-//    public void updateAccessLimit(Map<String, Integer> copyAppCountClients) {
-//        offer(() -> {
-//            // broadcast information
-//            Map<String, Integer> countConnections = new HashMap<>();
-//            for (Map.Entry<String, Integer> entry : copyAppCountClients.entrySet()) {
-//                String appId = entry.getKey();
-//                Integer count = entry.getValue();
-//
-//                Topic topic = users.getApplication(appId);
-//                if (topic == null) {
-//                    continue;
-//                }
-//                User user = topic.getUser();
-//                Integer connections = countConnections.get(user.getSubjecthubId());
-//                if (connections == null) {
-//                    countConnections.put(user.getSubjecthubId(), count);
-//                } else {
-//                    countConnections.put(user.getSubjecthubId(), count + connections);
-//                }
-//            }
-//
-//            JSONArray jsonArray = new JSONArray();
-//            for (Map.Entry<String, Integer> entry : countConnections.entrySet()) {
-//                String subjecthubId = entry.getKey();
-//                Integer count = entry.getValue();
-//                JSONObject obj = new JSONObject();
-//                obj.put("shid", subjecthubId);
-//                obj.put("count", count.intValue());
-//
-//                jsonArray.put(obj);
-//            }
-//
-//            JSONObject updateConnections = new JSONObject();
-//            updateConnections.put("operation", "update_connections");
-//            updateConnections.put("counts", jsonArray);
-//            updateConnections.put("server", serverName);
-//
-//            client.publish(new MigratoryDataMessage(serviceSubject, updateConnections.toString().getBytes()));
-//        });
-//    }
-//
-//    public void updatePublishLimit(Map<String, PublishLimit.PublishCount> copyPublishLimit) {
-//        offer(() -> {
-//            publishLimit = copyPublishLimit;
-//
-//            // subjecthub_id -> numberOfMessages
-//            for (Map.Entry<String, PublishLimit.PublishCount> entry : copyPublishLimit.entrySet()) {
-//                String subjecthubId = entry.getKey();
-//                PublishLimit.PublishCount publishCount = entry.getValue();
-//                int newMessages = publishCount.current - publishCount.previous;
-//                User user = users.getUser(subjecthubId);
-//                if (user != null) {
-//                    user.addNewReceivedMessages(newMessages);
-//                }
-//            }
-//        });
-//    }
+    public void updateConnections(Map<String, Integer> topicToConnections, String serverName) {
+        offer(() -> {
+            for (Map.Entry<String, Integer> entry : topicToConnections.entrySet()) {
+                Topic topic = topics.get(entry.getKey());
+                if (topic != null) {
+                    topic.updateConnections(serverName, entry.getValue());
+                }
+            }
+        });
+    }
+
+    public void updateMessages(Map<String, Integer> messages, String serverName) {
+        offer(() -> {
+            for (Map.Entry<String, Integer> entry : messages.entrySet()) {
+                Topic topic = topics.get(entry.getKey());
+                if (topic != null) {
+                    topic.addMessages(entry.getValue());
+                }
+            }
+        });
+    }
 
     public void handleSubscribeCheck(MigratoryDataSubscribeRequest migratoryDataSubscribeRequest) {
         offer(() -> {
@@ -152,13 +133,20 @@ public class AuthorizationManager implements Runnable {
                     continue;
                 }
 
+                String topicFromSubject = Util.getTopicFromSubject(subject);
+                if (!topicFromSubject.equals(topic.getTopic())) {
+                    migratoryDataSubscribeRequest.setAllowed(subject, false);
+                    continue;
+                }
+
                 // check if connections limit exceeded
-//                if (topic.getUser().isConnectionsLimitExceeded()) {
-//                    migratoryDataSubscribeRequest.setAllowed(subject, false);
-//                    String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
-//                    System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "MANAGER_THREAD", "Connections limit reached for subjecthubId=" + topic.getUser().getSubjecthubId()));
-//                    continue;
-//                }
+                if (topic.isConnectionLimitExceeded()) {
+                    String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
+                    System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "MANAGER_THREAD", "Connections Limit reached for topic=" + key[0]));
+
+                    migratoryDataSubscribeRequest.setAllowed(subject, false);
+                    continue;
+                }
 
                 // check the key
                 if (topic.getKey().checkSubscribe(token)) {
@@ -193,38 +181,30 @@ public class AuthorizationManager implements Runnable {
                 return;
             }
 
-            if (!topic.equals(Util.getTopicFromSubject(subject))) {
+            if (!topic.getTopic().equals(Util.getTopicFromSubject(subject))) {
                 migratoryDataPublishRequest.setAllowed(false);
                 migratoryDataPublishRequest.sendResponse();
                 return;
             }
 
-//            Key key = users.getKey(key[0]);
-//            if (key == null || key.checkPublish(key[1]) == false) {
-//                migratoryDataPublishRequest.setAllowed(false);
-//                migratoryDataPublishRequest.sendResponse();
-//                return;
-//            }
-
             // check if publish limit exceeded
-            boolean allowToPublish = false;
-//            String subjecthubId = getTopicFromSubject(subject);
-//            if (subjecthubId != null) {
-//                PublishLimit.PublishCount limit = publishLimit.get(subjecthubId);
-//                if (limit == null || !users.getUser(subjecthubId).isPublishLimitExceeded(limit.current)) {
-//                    allowToPublish = true;
-//                } else {
-//                    String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
-//                    System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "MANAGER_THREAD", "Publish Limit reached for subjecthubId=" + subjecthubId));
-//                }
-//            }
+            if (topic.isMessagesLimitExceeded()) {
+                String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
+                System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "MANAGER_THREAD", "Messages Limit reached for topic=" + key[0]));
+
+                migratoryDataPublishRequest.setAllowed(false);
+                migratoryDataPublishRequest.sendResponse();
+                return;
+            }
 
             // check key
             if (topic.getKey().checkPublish(token)) {
-                allowToPublish = true;
+                migratoryDataPublishRequest.setAllowed(true);
+                migratoryDataPublishRequest.sendResponse();
+                return;
             }
 
-            migratoryDataPublishRequest.setAllowed(allowToPublish);
+            migratoryDataPublishRequest.setAllowed(false);
             migratoryDataPublishRequest.sendResponse();
         });
     }

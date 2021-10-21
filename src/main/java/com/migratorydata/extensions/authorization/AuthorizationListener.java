@@ -6,16 +6,17 @@ import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Properties;
+import java.util.UUID;
 
 public class AuthorizationListener implements MigratoryDataEntitlementListener {
 
     private static final String authFileName = "authorization.conf";
 
     private static String kafkaCluster = "localhost:9092";
-    private static String topics = "entitlement";
 
-    private static String serverName = "server1";
-    private static int nodeIndex = 0;
+    public static String serverName = "server1";
+    public static String topicEntitlement = "entitlement";
+    public static String topicStats = "stats";
 
     static {
         boolean loadConfig = false;
@@ -24,6 +25,17 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
         if (loadConfig == false) {
             try (InputStream input = new FileInputStream("/usr/share/migratorydata/extensions/" + authFileName)) {
                 System.out.println("load from /usr/share/migratorydata/extensions/" + authFileName);
+                prop = new Properties();
+                prop.load(input);
+                loadConfig = true;
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        }
+
+        if (loadConfig == false) {
+            try (InputStream input = new FileInputStream("/usr/share/migratorydata-ke/extensions/" + authFileName)) {
+                System.out.println("load from /usr/share/migratorydata-ke/extensions/" + authFileName);
                 prop = new Properties();
                 prop.load(input);
                 loadConfig = true;
@@ -50,8 +62,8 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
                 prop = new Properties();
                 prop.load(input);
                 loadConfig = true;
-            } catch (IOException exx) {
-                exx.printStackTrace();
+            } catch (IOException ex) {
+                ex.printStackTrace();
             }
         }
 
@@ -61,22 +73,24 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
                 prop = new Properties();
                 prop.load(input);
                 loadConfig = true;
-            } catch (IOException exxx) {
-                exxx.printStackTrace();
+            } catch (IOException ex) {
+                ex.printStackTrace();
             }
         }
 
         if (loadConfig) {
             kafkaCluster = prop.getProperty("bootstrap.servers");
-            topics = prop.getProperty("topics");
 
-            serverName = System.getProperty("com.migratorydata.extensions.authorization.serverName", "server1");
-            nodeIndex = Integer.valueOf(System.getProperty("com.migratorydata.extensions.authorization.index", "0"));
+            topicEntitlement = prop.getProperty("topic.entitlement");
+            topicStats = prop.getProperty("topic.stats");
+
+            serverName = UUID.randomUUID().toString();
         }
     }
 
     private AuthorizationManager authorizationManager;
     private Consumer consumer;
+    private Producer producer;
     private SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SZ");
 
     public static AuthorizationListener INSTANCE;
@@ -94,19 +108,17 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
 
         Thread loop = new Thread(authorizationManager);
         loop.setDaemon(true);
-        loop.setName("SecretKeyManagerLoop");
+        loop.setName("AuthorizationManager");
         loop.start();
 
-        consumer = new Consumer(kafkaCluster, topics, authorizationManager);
+        consumer = new Consumer(kafkaCluster, topicEntitlement, topicStats, authorizationManager);
         consumer.begin();
+
+        producer = new Producer(kafkaCluster);
 
         synchronized (AuthorizationListener.class) {
             INSTANCE = this;
         }
-    }
-
-    public AuthorizationListener(AuthorizationManager authorizationManager) {
-        this.authorizationManager = authorizationManager;
     }
 
     synchronized public static AuthorizationListener getInstance() {
@@ -127,26 +139,19 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
         authorizationManager.handlePublishCheck(migratoryDataPublishRequest);
     }
 
-//    public void updatePublishLimit(Map<String, PublishLimit.PublishCount> copyPublishLimit) {
-//        authorizationManager.updatePublishLimit(copyPublishLimit);
-//    }
-//
-//    public void updateAccessLimit(Map<String, Integer> copyAppCountClients) {
-//        authorizationManager.updateAccessLimit(copyAppCountClients);
-//    }
-
-//    public void onConnectorRequest(MigratoryDataPresenceListener.Message message) {
-//        authorizationManager.onConnectorMessage(message);
-//    }
-
     private void logConfig() {
         System.out.println("@@@@@@@ AUTHORIZATION EXTENSION LISTENER CONFIG:");
-        System.out.println("\t\t\tkafkaCluster=" + serverName);
-        System.out.println("\t\t\ttopics=" + topics);
+        System.out.println("\t\t\tkafkaCluster=" + kafkaCluster);
+        System.out.println("\t\t\tserverName=" + serverName);
+        System.out.println("\t\t\ttopics=" + topicEntitlement + ", " + topicStats);
     }
 
     private void log(String info) {
         String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
         System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "AUTHORIZATION", info));
+    }
+
+    public Producer getProducer() {
+        return producer;
     }
 }

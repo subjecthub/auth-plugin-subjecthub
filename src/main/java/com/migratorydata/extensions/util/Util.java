@@ -2,9 +2,6 @@ package com.migratorydata.extensions.util;
 
 import com.migratorydata.extensions.user.Key;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class Util {
 
     public static String getTopicFromSubject(String subject) {
@@ -39,14 +36,5 @@ public class Util {
             return Key.KeyType.PUBLISH;
         }
         throw new RuntimeException("invalid key");
-    }
-
-    public static List<String> getKafkaTopics(String topicsList) {
-        List<String> topics = new ArrayList<>();
-        String[] topicsSplit = topicsList.split(",");
-        for (String topic : topicsSplit) {
-            topics.add(topic.trim());
-        }
-        return topics;
     }
 }

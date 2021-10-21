@@ -18,9 +18,9 @@ jar {
 
 // In this section you declare the dependencies for your production and test code
 dependencies {
-    compile files('libs/migratorydata-extension-authorization.jar')
-//    compile files('libs/migratorydata-extension-audit.jar')
-//    compile files('libs/migratorydata-extension-presence.jar')
+    implementation files('libs/migratorydata-extension-authorization.jar')
+    implementation files('libs/migratorydata-extension-audit.jar')
+    implementation files('libs/migratorydata-extension-topic-stats.jar')
 
     compile group: 'org.json', name: 'json', version: '20190722'
 

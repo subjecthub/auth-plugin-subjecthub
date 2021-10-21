@@ -1,18 +1,14 @@
 package com.migratorydata.extensions.authorization;
 
-import com.migratorydata.extensions.util.Util;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.*;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
+import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
-import java.util.List;
-import java.util.Properties;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Consumer implements Runnable {
@@ -26,8 +22,10 @@ public class Consumer implements Runnable {
     private final Properties props;
     private final List<String> topicList;
     private final AuthorizationManager authorizationManager;
+    private final String topicStats;
+    private final String topicEntitlement;
 
-    public Consumer(String kafkaCluster, String topics, AuthorizationManager authorizationManager) {
+    public Consumer(String kafkaCluster, String topicEntitlement, String topicStats, AuthorizationManager authorizationManager) {
         props = new Properties();
         this.authorizationManager = authorizationManager;
         // generate unique group id
@@ -38,9 +36,11 @@ public class Consumer implements Runnable {
 
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArrayDeserializer");
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
-        topicList = Util.getKafkaTopics(topics);
+        this.topicEntitlement = topicEntitlement;
+        this.topicStats = topicStats;
+
+        topicList = Arrays.asList(topicEntitlement, topicStats);
 
         consumer = new KafkaConsumer<String, byte[]>(props);
 
@@ -61,7 +61,24 @@ public class Consumer implements Runnable {
     @Override
     public void run() {
 
-        consumer.subscribe(topicList);
+        ConsumerRebalanceListener rebalanceListener = new ConsumerRebalanceListener() {
+            @Override
+            public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+            }
+
+            @Override
+            public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+                for (TopicPartition p : partitions) {
+                    if (p.topic().equals(topicEntitlement)) {
+                        consumer.seekToBeginning(Collections.singleton(p));
+                    } else {
+                        consumer.seekToEnd(Collections.singleton(p));
+                    }
+                }
+            }
+        };
+
+        consumer.subscribe(topicList, rebalanceListener);
 
         try {
             while (!closed.get()) {
@@ -74,8 +91,19 @@ public class Consumer implements Runnable {
                     //System.out.printf("%s-%d-%d, key = %s, value = %s --- %d %n", record.topic(), record.partition(), record.offset(), record.key(), record.value(), record.timestamp());
 
 
-                    if (record.topic().equals("entitlement")) {
+                    if (record.topic().equals(topicEntitlement)) {
                         authorizationManager.onMessage(new String(record.value()));
+                    } else {
+                        JSONObject result = new JSONObject(new String(record.value()));
+                        String op = result.getString("op");
+                        String serverName = result.getString("server");
+                        if ("connections".equals(op)) {
+                            Map connections = result.getJSONObject("connections").toMap();
+                            authorizationManager.updateConnections(connections, serverName);
+                        } else if ("messages".equals(op)) {
+                            Map messages = result.getJSONObject("messages").toMap();
+                            authorizationManager.updateMessages(messages, serverName);
+                        }
                     }
                 }
             }
