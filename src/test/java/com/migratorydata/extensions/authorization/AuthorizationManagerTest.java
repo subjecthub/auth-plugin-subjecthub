@@ -79,6 +79,13 @@ public class AuthorizationManagerTest {
         authorizationManager.handlePublishCheck(request);
         Thread.sleep(200);
         Assert.assertFalse(request.allowed);
+
+        ClientCredentials clientCredentials2 = new ClientCredentials("t-topic1:xxx:s.p", "192.168.1.1:5000");
+        SubscribeRequest subscribeRequest2 = new SubscribeRequest(clientCredentials2, subject);
+        authorizationManager.handleSubscribeCheck(subscribeRequest2);
+
+        Thread.sleep(200);
+        Assert.assertTrue(subscribeRequest2.allowed);
     }
 
     @Test
@@ -198,6 +205,7 @@ public class AuthorizationManagerTest {
         Assert.assertFalse(publishRequest2.allowed);
     }
 
+    @Test
     public void testConsumerJSonTransform() {
         Map<String, Integer> topicsToConnections = new HashMap<>();
         topicsToConnections.put("t-topic1", 2);
@@ -210,13 +218,16 @@ public class AuthorizationManagerTest {
         connectionsStats.put("server", "s1");
         connectionsStats.put("connections", new JSONObject(topicsToConnections));
 
+        System.out.println(connectionsStats.toString());
         byte[] data = connectionsStats.toString().getBytes();
 
         JSONObject result = new JSONObject(new String(data));
+        System.out.println(result);
         String op = result.getString("op");
         String serverName = result.getString("server");
+
         Assert.assertEquals(op, "connections");
-        Assert.assertEquals(serverName, "server");
+        Assert.assertEquals(serverName, "s1");
 
         Map connections = result.getJSONObject("connections").toMap();
 

@@ -2,6 +2,7 @@ package com.migratorydata.extensions.audit;
 
 import com.migratorydata.extensions.authorization.AuthorizationListener;
 import com.migratorydata.extensions.authorization.Producer;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.text.SimpleDateFormat;
@@ -83,7 +84,14 @@ public class AccessLimit implements MigratoryDataAccessListener {
         JSONObject connectionsStats = new JSONObject();
         connectionsStats.put("op", "connections");
         connectionsStats.put("server", serverName);
-        connectionsStats.put("connections", new JSONObject(topicsToConnections));
+        JSONArray metrics = new JSONArray();
+        for (Map.Entry<String, Integer> entry : topicsToConnections.entrySet()) {
+            JSONObject metric = new JSONObject();
+            metric.put("topic", entry.getKey());
+            metric.put("value", entry.getValue());
+            metrics.put(metric);
+        }
+        connectionsStats.put("metrics", metrics);
 
         producer.write(topicStats, connectionsStats.toString().getBytes(), serverName);
     }

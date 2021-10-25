@@ -3,6 +3,7 @@ package com.migratorydata.extensions.authorization;
 import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -97,12 +98,18 @@ public class Consumer implements Runnable {
                         JSONObject result = new JSONObject(new String(record.value()));
                         String op = result.getString("op");
                         String serverName = result.getString("server");
+                        JSONArray metrics = result.getJSONArray("metrics");
+                        Map<String, Integer> metricsMap = new HashMap<>();
+                        for (int i = 0; i < metrics.length(); i++) {
+                            String topicName = metrics.getJSONObject(i).getString("topic");
+                            int value = metrics.getJSONObject(i).getInt("value");
+                            metricsMap.put(topicName, value);
+                        }
+
                         if ("connections".equals(op)) {
-                            Map connections = result.getJSONObject("connections").toMap();
-                            authorizationManager.updateConnections(connections, serverName);
+                            authorizationManager.updateConnections(metricsMap, serverName);
                         } else if ("messages".equals(op)) {
-                            Map messages = result.getJSONObject("messages").toMap();
-                            authorizationManager.updateMessages(messages, serverName);
+                            authorizationManager.updateMessages(metricsMap, serverName);
                         }
                     }
                 }
