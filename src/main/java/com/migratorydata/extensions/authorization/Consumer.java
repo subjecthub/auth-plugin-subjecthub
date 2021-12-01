@@ -26,24 +26,26 @@ public class Consumer implements Runnable {
     private final String topicStats;
     private final String topicEntitlement;
 
-    public Consumer(String kafkaCluster, String topicEntitlement, String topicStats, AuthorizationManager authorizationManager) {
-        props = new Properties();
+    public Consumer(Properties p, String topicEntitlement, String topicStats, AuthorizationManager authorizationManager) {
+        this.props = new Properties();
+        for (String pp : p.stringPropertyNames()) {
+            this.props.put(pp, p.get(pp));
+        }
         this.authorizationManager = authorizationManager;
         // generate unique group id
 
-        String groupId = "AuthorizationKafkaConsumer-" + String.valueOf(UUID.randomUUID());
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaCluster);
+        String groupId = "AuthorizationKafkaConsumer-" + UUID.randomUUID().toString().substring(0, 5);
+        this.props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
 
-        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArrayDeserializer");
+        this.props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
+        this.props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArrayDeserializer");
 
         this.topicEntitlement = topicEntitlement;
         this.topicStats = topicStats;
 
         topicList = Arrays.asList(topicEntitlement, topicStats);
 
-        consumer = new KafkaConsumer<String, byte[]>(props);
+        consumer = new KafkaConsumer<String, byte[]>(this.props);
 
         this.thread = new Thread(this);
         this.thread.setName("KafkaAgentConsumer-" + thread.getId());

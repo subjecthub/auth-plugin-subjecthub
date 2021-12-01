@@ -6,8 +6,11 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.util.Date;
 import java.util.Map;
+
+import static com.migratorydata.extensions.util.Util.toEpochNanos;
 
 public class TopicStatsListener implements MigratoryDataTopicStatsListener {
 
@@ -32,9 +35,10 @@ public class TopicStatsListener implements MigratoryDataTopicStatsListener {
     @Override
     public void onMessagesLimit(Map<String, Integer> map) {
         if (map.size() > 0) {
-            JSONObject connectionsStats = new JSONObject();
-            connectionsStats.put("op", "messages");
-            connectionsStats.put("server", serverName);
+            JSONObject metricStats = new JSONObject();
+            metricStats.put("op", "messages");
+            metricStats.put("server", serverName);
+            metricStats.put("timestamp", toEpochNanos(Instant.now()));
 
             JSONArray metrics = new JSONArray();
             for (Map.Entry<String, Integer> entry : map.entrySet()) {
@@ -43,9 +47,9 @@ public class TopicStatsListener implements MigratoryDataTopicStatsListener {
                 metric.put("value", entry.getValue());
                 metrics.put(metric);
             }
-            connectionsStats.put("metrics", new JSONObject(metrics));
+            metricStats.put("metrics", metrics);
 
-            producer.write(topicStats, connectionsStats.toString().getBytes(), serverName);
+            producer.write(topicStats, metricStats.toString().getBytes(), serverName);
         }
     }
 

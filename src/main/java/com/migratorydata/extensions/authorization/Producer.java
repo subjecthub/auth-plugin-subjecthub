@@ -10,14 +10,16 @@ public class Producer {
 
     private final KafkaProducer<String, byte[]> producer;
 
-    public Producer(String kafkaCluster) {
-        Properties props = new Properties();
+    public Producer(Properties p) {
+        Properties producerProps = new Properties();
+        for (String pp : p.stringPropertyNames()) {
+            producerProps.put(pp, p.get(pp));
+        }
 
-        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringSerializer");
-        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer");
-        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaCluster);
+        producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringSerializer");
+        producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer");
 
-        producer = new KafkaProducer<>(props);
+        producer = new KafkaProducer<>(producerProps);
     }
 
     public void write(String topic, byte[] data, String key) {

@@ -1,8 +1,6 @@
 package com.migratorydata.extensions.authorization;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Properties;
@@ -12,32 +10,20 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
 
     private static final String authFileName = "authorization.conf";
 
-    private static String kafkaCluster = "localhost:9092";
-
     public static String serverName = "server1";
     public static String topicEntitlement = "entitlement";
     public static String topicStats = "stats";
 
+    private static Properties props = null;
+
     static {
         boolean loadConfig = false;
-        Properties prop = null;
 
         if (loadConfig == false) {
             try (InputStream input = new FileInputStream("/usr/share/migratorydata/extensions/" + authFileName)) {
                 System.out.println("load from /usr/share/migratorydata/extensions/" + authFileName);
-                prop = new Properties();
-                prop.load(input);
-                loadConfig = true;
-            } catch (IOException ex) {
-                ex.printStackTrace();
-            }
-        }
-
-        if (loadConfig == false) {
-            try (InputStream input = new FileInputStream("/usr/share/migratorydata-ke/extensions/" + authFileName)) {
-                System.out.println("load from /usr/share/migratorydata-ke/extensions/" + authFileName);
-                prop = new Properties();
-                prop.load(input);
+                props = new Properties();
+                props.load(input);
                 loadConfig = true;
             } catch (IOException ex) {
                 ex.printStackTrace();
@@ -47,8 +33,8 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
         if (loadConfig == false) {
             try (InputStream input = new FileInputStream("./extensions/" + authFileName)) {
                 System.out.println("load from ./extensions/" + authFileName);
-                prop = new Properties();
-                prop.load(input);
+                props = new Properties();
+                props.load(input);
                 loadConfig = true;
             } catch (IOException ex) {
                 ex.printStackTrace();
@@ -59,8 +45,8 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
         if (loadConfig == false) {
             try (InputStream input = new FileInputStream("./" + authFileName)) {
                 System.out.println("load from ./" + authFileName);
-                prop = new Properties();
-                prop.load(input);
+                props = new Properties();
+                props.load(input);
                 loadConfig = true;
             } catch (IOException ex) {
                 ex.printStackTrace();
@@ -70,8 +56,8 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
         if (loadConfig == false) {
             try (InputStream input = AuthorizationManager.class.getClassLoader().getResourceAsStream(authFileName)) {
                 System.out.println("load from resources = " + authFileName);
-                prop = new Properties();
-                prop.load(input);
+                props = new Properties();
+                props.load(input);
                 loadConfig = true;
             } catch (IOException ex) {
                 ex.printStackTrace();
@@ -79,10 +65,8 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
         }
 
         if (loadConfig) {
-            kafkaCluster = prop.getProperty("bootstrap.servers");
-
-            topicEntitlement = prop.getProperty("topic.entitlement");
-            topicStats = prop.getProperty("topic.stats");
+            topicEntitlement = props.getProperty("topic.entitlement");
+            topicStats = props.getProperty("topic.stats");
 
             serverName = UUID.randomUUID().toString();
         }
@@ -111,10 +95,10 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
         loop.setName("AuthorizationManager");
         loop.start();
 
-        consumer = new Consumer(kafkaCluster, topicEntitlement, topicStats, authorizationManager);
+        consumer = new Consumer(props, topicEntitlement, topicStats, authorizationManager);
         consumer.begin();
 
-        producer = new Producer(kafkaCluster);
+        producer = new Producer(props);
 
         synchronized (AuthorizationListener.class) {
             INSTANCE = this;
@@ -141,9 +125,9 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
 
     private void logConfig() {
         System.out.println("@@@@@@@ AUTHORIZATION EXTENSION LISTENER CONFIG:");
-        System.out.println("\t\t\tkafkaCluster=" + kafkaCluster);
         System.out.println("\t\t\tserverName=" + serverName);
         System.out.println("\t\t\ttopics=" + topicEntitlement + ", " + topicStats);
+        System.out.println("\t\t\tproperties=" + getPropertyAsString(props));
     }
 
     private void log(String info) {
@@ -153,5 +137,11 @@ public class AuthorizationListener implements MigratoryDataEntitlementListener {
 
     public Producer getProducer() {
         return producer;
+    }
+
+    public static String getPropertyAsString(Properties prop) {
+        StringWriter writer = new StringWriter();
+        prop.list(new PrintWriter(writer));
+        return writer.getBuffer().toString();
     }
 }

@@ -6,12 +6,15 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+
+import static com.migratorydata.extensions.util.Util.toEpochNanos;
 
 public class AccessLimit implements MigratoryDataAccessListener {
 
@@ -84,6 +87,8 @@ public class AccessLimit implements MigratoryDataAccessListener {
         JSONObject connectionsStats = new JSONObject();
         connectionsStats.put("op", "connections");
         connectionsStats.put("server", serverName);
+        connectionsStats.put("timestamp", toEpochNanos(Instant.now()));
+
         JSONArray metrics = new JSONArray();
         for (Map.Entry<String, Integer> entry : topicsToConnections.entrySet()) {
             JSONObject metric = new JSONObject();
