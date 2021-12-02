@@ -10,19 +10,27 @@ public class Util {
     static final long MICROSECONDS_PER_SECOND = TimeUnit.SECONDS.toMicros(1);
     static final long NANOSECONDS_PER_MICROSECOND = TimeUnit.MICROSECONDS.toNanos(1);
 
-    public static String getTopicFromSubject(String subject) {
-        int index = subject.indexOf("/", 1);
-        if (index == -1) {
-            return subject.substring(1);
+    // input = /topic/app/sss
+    // output [topic, app]
+    public static String[] getTopicAndApplicationFromSubject(String subject) {
+        String[] elements = subject.substring(1).split("/");
+        if (elements.length < 2) {
+            return null;
         }
-        return subject.substring(1, index);
+
+        return elements;
     }
 
-    // topic:randomId:access
+    // input = topic:app:random_key:access
+    // output [topic, app, random_key, access]
     public static String[] getKeyElements(String token) {
+        if (token == null) {
+            return null;
+        }
+
         String[] elements = token.split(":");
 
-        if (elements.length == 3) {
+        if (elements.length == 4) {
             return elements;
         }
 
@@ -31,14 +39,14 @@ public class Util {
 
     public static Key.KeyType getKeyType(String key) {
         String[] keyElements = getKeyElements(key);
-        if (keyElements.length < 3) {
+        if (keyElements == null) {
             throw new RuntimeException("invalid key");
         }
-        if (keyElements[2].equals("s.p")) {
+        if (keyElements[3].equals("s.p")) {
             return Key.KeyType.PUB_SUB;
-        } else if (keyElements[2].equals("s")) {
+        } else if (keyElements[3].equals("s")) {
             return Key.KeyType.SUBSCRIBE;
-        } else if (keyElements[2].equals("p")) {
+        } else if (keyElements[3].equals("p")) {
             return Key.KeyType.PUBLISH;
         }
         throw new RuntimeException("invalid key");

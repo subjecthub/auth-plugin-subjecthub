@@ -5,8 +5,8 @@ import com.migratorydata.extensions.authorization.MigratoryDataPublishRequest;
 
 public class PublishRequest implements MigratoryDataPublishRequest{
 
-    public boolean allowed = false;
-    public boolean sendResponse = false;
+    public volatile boolean allowed = false;
+    public volatile boolean sendResponse = false;
 
     private ClientCredentials clientCredentials;
     private String subject;

@@ -2,6 +2,8 @@ package com.migratorydata.extensions.limits;
 
 import com.migratorydata.extensions.authorization.AuthorizationListener;
 import com.migratorydata.extensions.authorization.Producer;
+import com.migratorydata.extensions.stats.MigratoryDataSubjectStats;
+import com.migratorydata.extensions.stats.MigratoryDataSubjectStatsListener;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -10,9 +12,9 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.Map;
 
-import static com.migratorydata.extensions.util.Util.toEpochNanos;
+import static com.migratorydata.extensions.util.Util.*;
 
-public class TopicStatsListener implements MigratoryDataTopicStatsListener {
+public class SubjectStatsListener implements MigratoryDataSubjectStatsListener {
 
     private SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SZ");
 
@@ -22,7 +24,7 @@ public class TopicStatsListener implements MigratoryDataTopicStatsListener {
     private final String serverName;
     private final String topicStats;
 
-    public TopicStatsListener() {
+    public SubjectStatsListener() {
         log("@@@@@ TOPICSTATS EXTENSION @@@@");
 
         this.authorizationListener = AuthorizationListener.getInstance();
@@ -33,7 +35,7 @@ public class TopicStatsListener implements MigratoryDataTopicStatsListener {
     }
 
     @Override
-    public void onMessagesLimit(Map<String, Integer> map) {
+    public void inOutMessagesFromLast5Seconds(Map<String, MigratoryDataSubjectStats> map) {
         if (map.size() > 0) {
             JSONObject metricStats = new JSONObject();
             metricStats.put("op", "messages");
@@ -41,11 +43,16 @@ public class TopicStatsListener implements MigratoryDataTopicStatsListener {
             metricStats.put("timestamp", toEpochNanos(Instant.now()));
 
             JSONArray metrics = new JSONArray();
-            for (Map.Entry<String, Integer> entry : map.entrySet()) {
-                JSONObject metric = new JSONObject();
-                metric.put("topic", entry.getKey());
-                metric.put("value", entry.getValue());
-                metrics.put(metric);
+            for (Map.Entry<String, MigratoryDataSubjectStats> entry : map.entrySet()) {
+                String[] topicAndSubject = getTopicAndApplicationFromSubject(entry.getKey());
+
+                if (topicAndSubject != null) {
+                    JSONObject metric = new JSONObject();
+                    metric.put("topic", topicAndSubject[0]);
+                    metric.put("application", topicAndSubject[1]);
+                    metric.put("value", entry.getValue().messages());
+                    metrics.put(metric);
+                }
             }
             metricStats.put("metrics", metrics);
 
@@ -57,5 +64,4 @@ public class TopicStatsListener implements MigratoryDataTopicStatsListener {
         String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
         System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "ACCESS", info));
     }
-
 }

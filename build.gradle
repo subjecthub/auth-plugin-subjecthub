@@ -20,7 +20,7 @@ jar {
 dependencies {
     implementation files('libs/migratorydata-extension-authorization.jar')
     implementation files('libs/migratorydata-extension-audit.jar')
-    implementation files('libs/migratorydata-extension-topic-stats.jar')
+    implementation files('libs/migratorydata-extension-subject-stats.jar')
 
     compile group: 'org.json', name: 'json', version: '20190722'
 

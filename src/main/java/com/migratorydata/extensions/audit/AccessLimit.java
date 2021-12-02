@@ -2,6 +2,7 @@ package com.migratorydata.extensions.audit;
 
 import com.migratorydata.extensions.authorization.AuthorizationListener;
 import com.migratorydata.extensions.authorization.Producer;
+import com.migratorydata.extensions.util.Metric;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -14,6 +15,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static com.migratorydata.extensions.util.Util.getKeyElements;
 import static com.migratorydata.extensions.util.Util.toEpochNanos;
 
 public class AccessLimit implements MigratoryDataAccessListener {
@@ -22,7 +24,7 @@ public class AccessLimit implements MigratoryDataAccessListener {
 
     private AuthorizationListener authorizationListener;
 
-    private Map<String, Integer> topicsToConnections = new HashMap<>(); // topic => connections
+    private Map<String, Metric> applicationsToConnections = new HashMap<>(); // app => connections
 
     private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
@@ -49,17 +51,20 @@ public class AccessLimit implements MigratoryDataAccessListener {
         executor.execute(() -> {
             log("onConnect = " + connectEvent);
 
-            String topic = getTopic(connectEvent.getToken());
+            String[] topicAndApplication = getKeyElements(connectEvent.getToken());
 
-            if (topic == null) {
+            if (topicAndApplication == null) {
                 return;
             }
 
-            Integer count = topicsToConnections.get(topic);
-            if (count == null) {
-                topicsToConnections.put(topic, Integer.valueOf(1));
+            String topic = topicAndApplication[0];
+            String application = topicAndApplication[1];
+
+            Metric metric = applicationsToConnections.get(application);
+            if (metric == null) {
+                applicationsToConnections.put(application, new Metric(topic, application, 1));
             } else {
-                topicsToConnections.put(topic, Integer.valueOf(count.intValue() + 1));
+                applicationsToConnections.put(application, new Metric(topic, application, metric.value + 1));
             }
         });
     }
@@ -71,14 +76,17 @@ public class AccessLimit implements MigratoryDataAccessListener {
 
             ConnectEvent castConnectEvent = (ConnectEvent) disconnectEvent;
 
-            String topic = getTopic(castConnectEvent.getToken());
-            if (topic == null) {
+            String[] topicAndApplication = getKeyElements(castConnectEvent.getToken());
+            if (topicAndApplication == null) {
                 return;
             }
 
-            Integer count = topicsToConnections.get(topic);
-            if (count != null && count.intValue() > 0) {
-                topicsToConnections.put(topic, Integer.valueOf(count.intValue() - 1));
+            String topic = topicAndApplication[0];
+            String application = topicAndApplication[1];
+
+            Metric metric = applicationsToConnections.get(application);
+            if (metric != null && metric.value > 0) {
+                applicationsToConnections.put(application, new Metric(topic, application, metric.value - 1));
             }
         });
     }
@@ -90,28 +98,16 @@ public class AccessLimit implements MigratoryDataAccessListener {
         connectionsStats.put("timestamp", toEpochNanos(Instant.now()));
 
         JSONArray metrics = new JSONArray();
-        for (Map.Entry<String, Integer> entry : topicsToConnections.entrySet()) {
+        for (Map.Entry<String, Metric> entry : applicationsToConnections.entrySet()) {
             JSONObject metric = new JSONObject();
-            metric.put("topic", entry.getKey());
-            metric.put("value", entry.getValue());
+            metric.put("topic", entry.getValue().topic);
+            metric.put("application", entry.getKey());
+            metric.put("value", entry.getValue().value);
             metrics.put(metric);
         }
         connectionsStats.put("metrics", metrics);
 
         producer.write(topicStats, connectionsStats.toString().getBytes(), serverName);
-    }
-
-    private String getTopic(String token) {
-        if (token == null) {
-            return null;
-        }
-
-        String[] elements = token.split(":");
-        if (elements.length < 3) {
-            return null;
-        }
-
-        return elements[0];
     }
 
     @Override

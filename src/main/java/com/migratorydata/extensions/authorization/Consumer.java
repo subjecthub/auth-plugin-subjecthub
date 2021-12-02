@@ -1,5 +1,6 @@
 package com.migratorydata.extensions.authorization;
 
+import com.migratorydata.extensions.util.Metric;
 import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
@@ -101,11 +102,16 @@ public class Consumer implements Runnable {
                         String op = result.getString("op");
                         String serverName = result.getString("server");
                         JSONArray metrics = result.getJSONArray("metrics");
-                        Map<String, Integer> metricsMap = new HashMap<>();
+                        Map<String, Metric> metricsMap = new HashMap<>();
                         for (int i = 0; i < metrics.length(); i++) {
-                            String topicName = metrics.getJSONObject(i).getString("topic");
+                            String topicName = null;
+                            try {
+                                topicName = metrics.getJSONObject(i).getString("topic");
+                            } catch (Exception e) {
+                            }
+                            String application = metrics.getJSONObject(i).getString("application");
                             int value = metrics.getJSONObject(i).getInt("value");
-                            metricsMap.put(topicName, value);
+                            metricsMap.put(application, new Metric(topicName, application, value));
                         }
 
                         if ("connections".equals(op)) {

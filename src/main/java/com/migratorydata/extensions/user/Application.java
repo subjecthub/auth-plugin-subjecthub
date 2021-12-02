@@ -3,7 +3,7 @@ package com.migratorydata.extensions.user;
 import java.util.HashMap;
 import java.util.Map;
 
-public class Topic {
+public class Application {
 
     private Map<String, Connection> connections = new HashMap<>();
 
@@ -11,12 +11,14 @@ public class Topic {
     private Limit limit = new Limit(100, 5000);
 
     private final String topic;
+    private final String application;
 
     private int connectionsNumber = 0;
     private int messagesNumber = 0;
 
-    public Topic(String topic) {
+    public Application(String topic, String application) {
         this.topic = topic;
+        this.application = application;
     }
 
     public Key getKey() {
@@ -43,9 +45,13 @@ public class Topic {
         return topic;
     }
 
+    public String getApplication() {
+        return application;
+    }
+
     @Override
     public String toString() {
-        return "Topic{" +
+        return "Application [ " + application + " ] {" +
                 "key=" + key +
                 ", limit=" + limit +
                 '}';

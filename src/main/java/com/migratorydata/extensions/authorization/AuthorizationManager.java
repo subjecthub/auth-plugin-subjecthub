@@ -1,7 +1,7 @@
 package com.migratorydata.extensions.authorization;
 
 import com.migratorydata.extensions.user.*;
-import com.migratorydata.extensions.util.Util;
+import com.migratorydata.extensions.util.Metric;
 import org.json.JSONObject;
 
 import java.text.SimpleDateFormat;
@@ -12,6 +12,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 import static com.migratorydata.extensions.util.Util.getKeyElements;
+import static com.migratorydata.extensions.util.Util.getTopicAndApplicationFromSubject;
 
 public class AuthorizationManager implements Runnable {
 
@@ -19,7 +20,7 @@ public class AuthorizationManager implements Runnable {
 
     private Queue<Runnable> queue = new ConcurrentLinkedQueue<>();
 
-    private Map<String, Topic> topics = new HashMap<>();
+    private Map<String, Application> applications = new HashMap<>();
 
     private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
@@ -31,7 +32,7 @@ public class AuthorizationManager implements Runnable {
         long nextHour = duration.getSeconds();
 
         executor.scheduleAtFixedRate(() -> {
-            for (Map.Entry<String, Topic> entry : topics.entrySet()) {
+            for (Map.Entry<String, Application> entry : applications.entrySet()) {
                 entry.getValue().resetMessagesNumber();
             }
         }, nextHour, 3600, TimeUnit.SECONDS);
@@ -51,22 +52,23 @@ public class AuthorizationManager implements Runnable {
 
             String operation = jsonMessage.getString("op");
             String topic = jsonMessage.getString("topic");
+            String application = jsonMessage.getString("application");
 
-            if (topics.containsKey(topic) == false) {
-                topics.put(topic, new Topic(topic));
+            if (applications.containsKey(application) == false) {
+                applications.put(application, new Application(topic, application));
             }
 
             if ("add_key".equals(operation)) {
-                topics.get(topic).addKey(jsonMessage.getString("key"));
+                applications.get(application).addKey(jsonMessage.getString("key"));
             }
             if ("delete_key".equals(operation)) {
-                topics.get(topic).deleteKey(jsonMessage.getString("key"));
+                applications.get(application).deleteKey(jsonMessage.getString("key"));
             }
             if ("add_limit".equals(operation)) {
-                topics.get(topic).addLimit(new Limit(jsonMessage.getInt("connections"), jsonMessage.getInt("messages")));
+                applications.get(application).addLimit(new Limit(jsonMessage.getInt("connections"), jsonMessage.getInt("messages")));
             }
             if ("delete_topic".equals(operation)) {
-                topics.remove(topic);
+                applications.remove(application);
             }
         });
     }
@@ -90,23 +92,23 @@ public class AuthorizationManager implements Runnable {
         }
     }
 
-    public void updateConnections(Map<String, Integer> topicToConnections, String serverName) {
+    public void updateConnections(Map<String, Metric> topicToConnections, String serverName) {
         offer(() -> {
-            for (Map.Entry<String, Integer> entry : topicToConnections.entrySet()) {
-                Topic topic = topics.get(entry.getKey());
-                if (topic != null) {
-                    topic.updateConnections(serverName, entry.getValue());
+            for (Map.Entry<String, Metric> entry : topicToConnections.entrySet()) {
+                Application application = applications.get(entry.getKey());
+                if (application != null) {
+                    application.updateConnections(serverName, entry.getValue().value);
                 }
             }
         });
     }
 
-    public void updateMessages(Map<String, Integer> messages, String serverName) {
+    public void updateMessages(Map<String, Metric> messages, String serverName) {
         offer(() -> {
-            for (Map.Entry<String, Integer> entry : messages.entrySet()) {
-                Topic topic = topics.get(entry.getKey());
-                if (topic != null) {
-                    topic.addMessages(entry.getValue());
+            for (Map.Entry<String, Metric> entry : messages.entrySet()) {
+                Application application = applications.get(entry.getKey());
+                if (application != null) {
+                    application.addMessages(entry.getValue().value);
                 }
             }
         });
@@ -127,29 +129,34 @@ public class AuthorizationManager implements Runnable {
                 }
 
                 // check if topic is created
-                Topic topic = topics.get(key[0]);
-                if (topic == null) {
+                Application application = applications.get(key[1]);
+                if (application == null) {
                     migratoryDataSubscribeRequest.setAllowed(subject, false);
                     continue;
                 }
 
-                String topicFromSubject = Util.getTopicFromSubject(subject);
-                if (!topicFromSubject.equals(topic.getTopic())) {
+                String[] topicAndSubject = getTopicAndApplicationFromSubject(subject);
+                if (!topicAndSubject[0].equals(application.getTopic())) {
+                    migratoryDataSubscribeRequest.setAllowed(subject, false);
+                    continue;
+                }
+
+                if (!application.getApplication().equals(topicAndSubject[1])) {
                     migratoryDataSubscribeRequest.setAllowed(subject, false);
                     continue;
                 }
 
                 // check if connections limit exceeded
-                if (topic.isConnectionLimitExceeded()) {
+                if (application.isConnectionLimitExceeded()) {
                     String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
-                    System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "MANAGER_THREAD", "Connections Limit reached for topic=" + key[0]));
+                    System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "MANAGER_THREAD", "Connections Limit reached for user with subject prefix=/" + key[0] + "/" + key[1]));
 
                     migratoryDataSubscribeRequest.setAllowed(subject, false);
                     continue;
                 }
 
                 // check the key
-                if (topic.getKey().checkSubscribe(token)) {
+                if (application.getKey().checkSubscribe(token)) {
                     migratoryDataSubscribeRequest.setAllowed(subject, true);
                 }
             }
@@ -174,23 +181,30 @@ public class AuthorizationManager implements Runnable {
             }
 
             // check subject is created
-            Topic topic = topics.get(key[0]);
-            if (topic == null) {
+            Application application = applications.get(key[1]);
+            if (application == null) {
                 migratoryDataPublishRequest.setAllowed(false);
                 migratoryDataPublishRequest.sendResponse();
                 return;
             }
 
-            if (!topic.getTopic().equals(Util.getTopicFromSubject(subject))) {
+            String[] topicAndSubject = getTopicAndApplicationFromSubject(subject);
+            if (!application.getTopic().equals(topicAndSubject[0])) {
+                migratoryDataPublishRequest.setAllowed(false);
+                migratoryDataPublishRequest.sendResponse();
+                return;
+            }
+
+            if (!application.getApplication().equals(topicAndSubject[1])) {
                 migratoryDataPublishRequest.setAllowed(false);
                 migratoryDataPublishRequest.sendResponse();
                 return;
             }
 
             // check if publish limit exceeded
-            if (topic.isMessagesLimitExceeded()) {
+            if (application.isMessagesLimitExceeded()) {
                 String isoDateTime = sdf.format(new Date(System.currentTimeMillis()));
-                System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "MANAGER_THREAD", "Messages Limit reached for topic=" + key[0]));
+                System.out.println(String.format("[%1$s] [%2$s] %3$s", isoDateTime, "MANAGER_THREAD", "Messages Limit reached for user with subject prefix=/" + key[0] + "/" + key[1]));
 
                 migratoryDataPublishRequest.setAllowed(false);
                 migratoryDataPublishRequest.sendResponse();
@@ -198,7 +212,7 @@ public class AuthorizationManager implements Runnable {
             }
 
             // check key
-            if (topic.getKey().checkPublish(token)) {
+            if (application.getKey().checkPublish(token)) {
                 migratoryDataPublishRequest.setAllowed(true);
                 migratoryDataPublishRequest.sendResponse();
                 return;

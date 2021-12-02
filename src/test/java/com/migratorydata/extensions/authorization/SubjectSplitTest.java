@@ -11,9 +11,25 @@ public class SubjectSplitTest {
 
     @Test
     public void testSplit() {
-        String subject1 = "/a/b/c";
+        String subject1 = "/a/b";
 
-        String[] elements = subject1.split("/");
+        String[] elements = subject1.substring(1).split("/");
+        for (int i = 0; i < elements.length; i++) {
+            System.out.print(elements[i]);
+        }
+        System.out.println(Arrays.toString(elements));
+    }
+
+    @Test
+    public void testSplit_() {
+        String subject1 = "a:b:c:d";
+
+        String[] elements = subject1.split(":");
+
+        for (int i = 0; i < elements.length; i++) {
+            System.out.print(elements[i]);
+        }
+
         System.out.println(Arrays.toString(elements));
     }
 
