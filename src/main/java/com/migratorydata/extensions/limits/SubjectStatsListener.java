@@ -56,7 +56,7 @@ public class SubjectStatsListener implements MigratoryDataSubjectStatsListener {
             }
             metricStats.put("metrics", metrics);
 
-            producer.write(topicStats, metricStats.toString().getBytes(), serverName);
+            producer.write(topicStats, metricStats.toString().getBytes());
         }
     }
 

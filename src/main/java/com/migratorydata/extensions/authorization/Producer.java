@@ -1,14 +1,18 @@
 package com.migratorydata.extensions.authorization;
 
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.clients.producer.ProducerRecord;
+import com.migratorydata.client.MigratoryDataClient;
+import com.migratorydata.client.MigratoryDataListener;
+import com.migratorydata.client.MigratoryDataMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Properties;
 
-public class Producer {
+public class Producer implements MigratoryDataListener {
+    private static final Logger logger = LoggerFactory.getLogger(Producer.class);
 
-    private final KafkaProducer<String, byte[]> producer;
+    private final MigratoryDataClient client;
+    private int id;
 
     public Producer(Properties p) {
         Properties producerProps = new Properties();
@@ -16,14 +20,25 @@ public class Producer {
             producerProps.put(pp, p.get(pp));
         }
 
-        producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringSerializer");
-        producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer");
+        client = new MigratoryDataClient();
+        client.setServers(p.getProperty("push.servers").split(","));
+        client.setEntitlementToken(p.getProperty("token"));
+        client.setListener(this);
 
-        producer = new KafkaProducer<>(producerProps);
+        client.connect();
     }
 
-    public void write(String topic, byte[] data, String key) {
-        ProducerRecord<String, byte[]> record = new ProducerRecord<>(topic, key, data);
-        producer.send(record);
+    public void write(String topic, byte[] data) {
+        client.publish(new MigratoryDataMessage(topic, data, "closure-" + id++));
+    }
+
+    @Override
+    public void onMessage(MigratoryDataMessage migratoryDataMessage) {
+
+    }
+
+    @Override
+    public void onStatus(String status, String info) {
+        logger.info("Extension-Producer-{}-{}", status, info);
     }
 }

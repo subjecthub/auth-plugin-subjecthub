@@ -107,7 +107,7 @@ public class AccessLimit implements MigratoryDataAccessListener {
         }
         connectionsStats.put("metrics", metrics);
 
-        producer.write(topicStats, connectionsStats.toString().getBytes(), serverName);
+        producer.write(topicStats, connectionsStats.toString().getBytes());
     }
 
     @Override
